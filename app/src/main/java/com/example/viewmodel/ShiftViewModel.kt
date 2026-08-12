@@ -42,11 +42,9 @@ class ShiftViewModel(
         val cleanedTrailer = trailerId.trim().takeIf { it.isNotEmpty() }
         val parsedOdometer = odometer.trim().toLongOrNull()
 
-        if (cleanedVehicle.isEmpty()) {
-            return fail("Vehicle registration / ID is required")
-        }
+        if (cleanedVehicle.isEmpty()) return failString("Vehicle registration / ID is required")
         if (parsedOdometer == null || parsedOdometer < 0L) {
-            return fail("Enter a valid non-negative odometer reading")
+            return failString("Enter a valid non-negative odometer reading")
         }
 
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
@@ -69,15 +67,34 @@ class ShiftViewModel(
         )
 
         _uiState.update {
-            it.copy(
-                isLoading = false,
-                errorMessage = result.exceptionOrNull()?.message
-            )
+            it.copy(isLoading = false, errorMessage = result.exceptionOrNull()?.message)
         }
         return result
     }
 
-    private fun fail(message: String): Result<String> {
+    suspend fun endShift(endOdometer: String): Result<Unit> {
+        val current = _uiState.value.currentShift
+            ?: return failUnit("No active shift found")
+        val parsed = endOdometer.trim().toLongOrNull()
+            ?: return failUnit("Enter a valid end odometer reading")
+        if (parsed < current.startOdometer) {
+            return failUnit("End odometer cannot be less than ${current.startOdometer}")
+        }
+
+        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        val result = shiftRepository.endShift(current.id, parsed)
+        _uiState.update {
+            it.copy(isLoading = false, errorMessage = result.exceptionOrNull()?.message)
+        }
+        return result
+    }
+
+    private fun failString(message: String): Result<String> {
+        _uiState.update { it.copy(errorMessage = message) }
+        return Result.failure(IllegalArgumentException(message))
+    }
+
+    private fun failUnit(message: String): Result<Unit> {
         _uiState.update { it.copy(errorMessage = message) }
         return Result.failure(IllegalArgumentException(message))
     }
