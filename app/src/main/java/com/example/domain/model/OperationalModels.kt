@@ -48,7 +48,21 @@ data class EvidenceRecord(
     val type: EvidenceType,
     val localUri: String?,
     val status: EvidenceStatus,
-    val createdAt: Long
+    val createdAt: Long,
+    val driverId: String? = null,
+    val shiftId: String? = null,
+    val signerName: String? = null,
+    val notes: String? = null,
+    val fileSizeBytes: Long? = null,
+    val savedAt: Long? = null
+)
+
+/** Everything needed to open a capture screen and attribute the resulting file. */
+data class EvidenceCaptureRequest(
+    val jobId: String,
+    val type: EvidenceType,
+    val driverId: String,
+    val shiftId: String? = null
 )
 
 data class SyncOperation(

@@ -4,6 +4,12 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
+/**
+ * A single piece of proof captured against a job (photo, signature, defect image).
+ *
+ * [createdAt] is when capture was requested; [savedAt] is only set once a file has actually been
+ * written to disk, which is also the only point at which the status becomes SAVED_LOCAL.
+ */
 @Entity(
     tableName = "evidence",
     indices = [Index("jobId"), Index("status")]
@@ -14,5 +20,11 @@ data class EvidenceEntity(
     val type: String,
     val localUri: String?,
     val status: String,
-    val createdAt: Long
+    val createdAt: Long,
+    val driverId: String? = null,
+    val shiftId: String? = null,
+    val signerName: String? = null,
+    val notes: String? = null,
+    val fileSizeBytes: Long? = null,
+    val savedAt: Long? = null
 )
