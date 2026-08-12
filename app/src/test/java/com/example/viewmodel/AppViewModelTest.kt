@@ -8,6 +8,7 @@ import com.example.domain.model.SyncOperation
 import com.example.domain.repository.AuthRepository
 import com.example.domain.repository.DriverRepository
 import com.example.domain.repository.JobRepository
+import com.example.domain.repository.SessionRepository
 import com.example.domain.repository.ShiftRepository
 import com.example.domain.repository.SyncRepository
 import com.example.model.Driver
@@ -20,6 +21,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -50,9 +52,9 @@ class AppViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun viewModel() = AppViewModel(
+    private fun viewModel(sessionRepository: SessionRepository = session) = AppViewModel(
         authRepository = auth,
-        sessionRepository = session,
+        sessionRepository = sessionRepository,
         driverRepository = FakeDriverRepository(),
         jobRepository = jobs,
         shiftRepository = FakeShiftRepository(),
@@ -112,6 +114,28 @@ class AppViewModelTest {
         assertTrue(model.uiState.value.isLoggedIn)
         assertFalse(model.uiState.value.isRestoringSession)
         assertEquals("James Miller", model.uiState.value.driver?.name)
+    }
+
+    @Test
+    fun sessionRestoreFailureExitsLoadingAndAllowsSignIn() = runTest {
+        val failingSession = object : SessionRepository by session {
+            override fun observeSession(): Flow<DriverSession?> = flow {
+                throw IllegalStateException("Stored session could not be read")
+            }
+        }
+        val model = viewModel(failingSession)
+
+        assertFalse(model.uiState.value.isRestoringSession)
+        assertFalse(model.uiState.value.isLoggedIn)
+        assertEquals(
+            "Unable to restore the driver session. Please sign in again.",
+            model.uiState.value.error
+        )
+
+        model.login("DRV-8492", "1234")
+
+        assertTrue(model.uiState.value.isLoggedIn)
+        assertEquals("DRV-8492", model.uiState.value.driver?.id)
     }
 
     @Test

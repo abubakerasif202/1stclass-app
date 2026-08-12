@@ -27,6 +27,9 @@ import com.example.viewmodel.*
 private const val STAGE_PICKUP = "pickup"
 private const val STAGE_DELIVERY = "delivery"
 
+internal fun initialRoute(isLoggedIn: Boolean): String =
+    if (isLoggedIn) Screen.Home.route else Screen.Login.route
+
 @Composable
 fun AppNavigation(
     navController: NavHostController,
@@ -34,6 +37,12 @@ fun AppNavigation(
     container: AppContainer
 ) {
     val uiState by viewModel.uiState.collectAsState()
+
+    if (uiState.isRestoringSession) {
+        BrandedLoadingScreen()
+        return
+    }
+
     val shiftViewModel: ShiftViewModel = viewModel(
         factory = viewModelFactory {
             ShiftViewModel(container.shiftRepository, container.inspectionRepository)
@@ -110,7 +119,7 @@ fun AppNavigation(
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = Screen.Login.route,
+            startDestination = initialRoute(uiState.isLoggedIn),
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(Screen.Login.route) {

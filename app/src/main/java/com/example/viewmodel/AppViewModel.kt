@@ -18,6 +18,7 @@ import com.example.model.ShiftStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -61,18 +62,30 @@ class AppViewModel(
     init {
         viewModelScope.launch { bootstrap() }
         viewModelScope.launch {
-            sessionRepository.observeSession().collect { session ->
-                val phone = session?.let { resolvePhone(it) }
-                _uiState.update { state ->
-                    state.copy(
-                        isRestoringSession = false,
-                        isLoggedIn = session != null,
-                        session = session,
-                        driver = session?.let { it.toDriver(phone, state.currentShift) },
-                        error = if (session != null) null else state.error
-                    )
+            sessionRepository.observeSession()
+                .catch {
+                    _uiState.update {
+                        it.copy(
+                            isRestoringSession = false,
+                            isLoggedIn = false,
+                            session = null,
+                            driver = null,
+                            error = "Unable to restore the driver session. Please sign in again."
+                        )
+                    }
                 }
-            }
+                .collect { session ->
+                    val phone = session?.let { resolvePhone(it) }
+                    _uiState.update { state ->
+                        state.copy(
+                            isRestoringSession = false,
+                            isLoggedIn = session != null,
+                            session = session,
+                            driver = session?.let { it.toDriver(phone, state.currentShift) },
+                            error = if (session != null) null else state.error
+                        )
+                    }
+                }
         }
         viewModelScope.launch {
             jobRepository.observeJobs().collect { jobs ->
@@ -113,7 +126,17 @@ class AppViewModel(
 
             authRepository.authenticate(driverId, pin)
                 .mapCatching { driver -> sessionRepository.startSession(driver).getOrThrow() }
-                .onSuccess { _uiState.update { it.copy(isLoading = false, error = null) } }
+                .onSuccess { session ->
+                    _uiState.update { state ->
+                        state.copy(
+                            isLoading = false,
+                            isLoggedIn = true,
+                            session = session,
+                            driver = session.toDriver(session.phone, state.currentShift),
+                            error = null
+                        )
+                    }
+                }
                 .onFailure { error ->
                     _uiState.update { it.copy(isLoading = false, error = error.toMessage()) }
                 }
