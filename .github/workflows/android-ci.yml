@@ -31,6 +31,36 @@ jobs:
       - name: Run unit tests
         run: gradle :app:testDebugUnitTest --stacktrace
 
+      - name: Run targeted safety tests
+        run: |
+          gradle :app:testDebugUnitTest \
+            --tests "com.example.domain.rules.JobTransitionRulesTest" \
+            --tests "com.example.domain.rules.InspectionRulesTest" \
+            --tests "com.example.domain.rules.ShiftRulesTest" \
+            --tests "com.example.domain.rules.EvidenceRulesTest" \
+            --tests "com.example.viewmodel.ShiftViewModelTest" \
+            --tests "com.example.viewmodel.JobViewModelTest" \
+            --tests "com.example.viewmodel.EvidenceViewModelTest" \
+            --stacktrace
+
+      - name: Verify unsafe generated patterns are gone
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RInE 'MockData|updateJobStatus|fun startShift|mutableStateOf<String\?>\("PASS"\)|hasPhoto = true|hasSignature = true|JobStatus\.UNASSIGNED, JobStatus\.ASSIGNED' app/src/main/java; then
+            echo "Unsafe legacy driver workflow pattern found"
+            exit 1
+          fi
+          if grep -n 'debugConfig' app/build.gradle.kts; then
+            echo "Custom debug signing configuration still exists"
+            exit 1
+          fi
+          if grep -RInE 'firebase\.ai|firebase-ai|GEMINI_API_KEY' . --exclude-dir=.git --exclude-dir=docs; then
+            echo "Unused AI/Firebase generation scaffold still exists"
+            exit 1
+          fi
+          echo "Phase 1 unsafe-pattern scan clean"
+
       - name: Build debug APK
         run: gradle :app:assembleDebug --stacktrace
 
