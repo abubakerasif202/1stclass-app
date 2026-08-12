@@ -7,6 +7,7 @@ import com.example.data.local.AppDatabase
 import com.example.data.local.JobPayloadCodec
 import com.example.data.local.entity.JobEntity
 import com.example.data.seed.PrototypeSeedData
+import com.example.domain.model.EvidenceCaptureRequest
 import com.example.domain.model.EvidenceStatus
 import com.example.domain.model.EvidenceType
 import com.example.domain.model.ShiftPhase
@@ -85,7 +86,9 @@ class RoomRepositoriesTest {
     fun pendingEvidenceDoesNotBecomeSavedWithoutUri() = runTest {
         val repository = RoomEvidenceRepository(database, clock, idGenerator)
 
-        val id = repository.createPending("j1", EvidenceType.PICKUP_PHOTO).getOrThrow()
+        val id = repository.createPending(
+            EvidenceCaptureRequest("j1", EvidenceType.PICKUP_PHOTO, "DRV-8492")
+        ).getOrThrow()
 
         assertEquals(EvidenceStatus.PENDING_CAPTURE.name, database.evidenceDao().getById(id)!!.status)
     }
