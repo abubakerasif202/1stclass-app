@@ -55,7 +55,7 @@ jobs:
             echo "Custom debug signing configuration still exists"
             exit 1
           fi
-          if grep -RInE 'firebase\.ai|firebase-ai|GEMINI_API_KEY' . --exclude-dir=.git --exclude-dir=docs; then
+          if grep -RInE 'firebase\.ai|firebase-ai|GEMINI_API_KEY' . --exclude-dir=.git --exclude-dir=docs --exclude-dir=.github; then
             echo "Unused AI/Firebase generation scaffold still exists"
             exit 1
           fi
