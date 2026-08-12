@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -52,6 +53,7 @@ fun SignatureScreen(
     var lines by remember { mutableStateOf(emptyList<List<Offset>>()) }
     var currentLine by remember { mutableStateOf(emptyList<Offset>()) }
     var signerName by remember { mutableStateOf("") }
+    BackHandler(onBack = onCancel)
 
     Scaffold(
         topBar = {
@@ -123,9 +125,7 @@ fun SignatureScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     PrimaryButton(
                         text = "Save Prototype Signature",
-                        onClick = {
-                            onSignatureSaved("prototype://$jobId/signature/$evidenceId")
-                        },
+                        onClick = { onSignatureSaved("prototype://$jobId/signature/$evidenceId") },
                         enabled = lines.isNotEmpty() && signerName.isNotBlank()
                     )
                 }
@@ -143,6 +143,8 @@ fun CameraScreen(
     onCancel: () -> Unit,
     onPhotoSaved: (String) -> Unit
 ) {
+    BackHandler(onBack = onCancel)
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -190,9 +192,7 @@ fun CameraScreen(
             Spacer(modifier = Modifier.height(24.dp))
             PrimaryButton(
                 text = "Save Prototype Photo",
-                onClick = {
-                    onPhotoSaved("prototype://$jobId/$type/$evidenceId")
-                },
+                onClick = { onPhotoSaved("prototype://$jobId/$type/$evidenceId") },
                 modifier = Modifier.padding(horizontal = 32.dp)
             )
         }
