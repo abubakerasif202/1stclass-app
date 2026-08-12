@@ -17,6 +17,14 @@ android {
     versionName = "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+    // Development-only driver credentials. Release overrides these to empty strings so no test
+    // account is provisioned in, or discoverable from, a production build.
+    buildConfigField("String", "DEV_DRIVER_ID", "\"\"")
+    buildConfigField("String", "DEV_DRIVER_PIN", "\"\"")
+    buildConfigField("boolean", "SHOW_DEV_CREDENTIALS", "false")
+    // Empty until the 1st Class Express TMS endpoint exists; the app falls back to local auth.
+    buildConfigField("String", "TMS_BASE_URL", "\"\"")
   }
 
   signingConfigs {
@@ -30,6 +38,11 @@ android {
   }
 
   buildTypes {
+    debug {
+      buildConfigField("String", "DEV_DRIVER_ID", "\"DRV-8492\"")
+      buildConfigField("String", "DEV_DRIVER_PIN", "\"1234\"")
+      buildConfigField("boolean", "SHOW_DEV_CREDENTIALS", "true")
+    }
     release {
       isCrunchPngs = false
       isMinifyEnabled = false
@@ -70,6 +83,7 @@ dependencies {
   implementation(libs.androidx.compose.ui.tooling.preview)
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.datastore.preferences)
+  implementation(libs.androidx.exifinterface)
   implementation(libs.androidx.lifecycle.runtime.compose)
   implementation(libs.androidx.lifecycle.runtime.ktx)
   implementation(libs.androidx.lifecycle.viewmodel.compose)

@@ -58,5 +58,7 @@ data class Driver(
     val name: String,
     val email: String,
     val shiftStatus: ShiftStatus,
-    val currentVehicleId: String? = null
+    val currentVehicleId: String? = null,
+    /** Null when the TMS has not supplied one; the UI shows "Not provided" rather than inventing it. */
+    val phone: String? = null
 )

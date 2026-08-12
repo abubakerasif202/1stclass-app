@@ -7,5 +7,6 @@ import androidx.room.PrimaryKey
 data class DriverEntity(
     @PrimaryKey val id: String,
     val name: String,
-    val email: String
+    val email: String,
+    val phone: String? = null
 )

@@ -18,6 +18,9 @@ interface ReferenceDataDao {
     @Query("SELECT * FROM drivers ORDER BY id LIMIT 1")
     suspend fun firstDriver(): DriverEntity?
 
+    @Query("SELECT * FROM drivers WHERE id = :id LIMIT 1")
+    suspend fun findDriver(id: String): DriverEntity?
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertDriver(driver: DriverEntity)
 
