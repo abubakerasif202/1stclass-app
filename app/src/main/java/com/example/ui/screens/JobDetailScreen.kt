@@ -34,8 +34,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.domain.model.EvidenceRecord
+import com.example.domain.model.FreightExceptionRecord
 import com.example.model.JobStatus
 import com.example.model.Location
+import com.example.ui.components.EvidenceGallery
+import com.example.ui.components.FreightExceptionSummary
 import com.example.ui.components.PrimaryButton
 import com.example.ui.components.SectionHeader
 import com.example.viewmodel.JobViewModel
@@ -46,6 +50,8 @@ import kotlinx.coroutines.launch
 fun JobDetailScreen(
     viewModel: JobViewModel,
     jobId: String,
+    evidence: List<EvidenceRecord>,
+    exceptions: List<FreightExceptionRecord>,
     onNavigateBack: () -> Unit,
     onNavigateToPickup: () -> Unit,
     onNavigateToDelivery: () -> Unit,
@@ -178,6 +184,47 @@ fun JobDetailScreen(
             item {
                 SectionHeader("Delivery Details")
                 LocationCard(job.delivery, job.deliveryWindowStart, job.deliveryWindowEnd)
+            }
+            item {
+                SectionHeader("Evidence & POD")
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        EvidenceGallery(
+                            records = evidence,
+                            emptyMessage = "No photos or signatures captured for this job yet."
+                        )
+                    }
+                }
+            }
+            if (exceptions.isNotEmpty()) {
+                item {
+                    SectionHeader("Freight Exceptions")
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            exceptions.forEach { record ->
+                                FreightExceptionSummary(
+                                    reasonLabel = record.reason.label,
+                                    notes = record.notes,
+                                    resolved = record.resolved,
+                                    onResolve = null
+                                )
+                            }
+                        }
+                    }
+                }
             }
             item { Spacer(modifier = Modifier.height(32.dp)) }
         }

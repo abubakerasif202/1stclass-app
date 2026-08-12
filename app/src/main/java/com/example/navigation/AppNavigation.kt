@@ -17,10 +17,15 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.*
 import com.example.AppContainer
+import com.example.BuildConfig
 import com.example.domain.model.ShiftPhase
+import com.example.ui.capture.CameraCaptureScreen
+import com.example.ui.capture.SignatureCaptureScreen
 import com.example.ui.screens.*
 import com.example.viewmodel.*
-import kotlinx.coroutines.launch
+
+private const val STAGE_PICKUP = "pickup"
+private const val STAGE_DELIVERY = "delivery"
 
 @Composable
 fun AppNavigation(
@@ -30,14 +35,31 @@ fun AppNavigation(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val shiftViewModel: ShiftViewModel = viewModel(
-        factory = viewModelFactory { ShiftViewModel(container.shiftRepository, container.inspectionRepository) }
+        factory = viewModelFactory {
+            ShiftViewModel(container.shiftRepository, container.inspectionRepository)
+        }
     )
     val jobViewModel: JobViewModel = viewModel(
         factory = viewModelFactory { JobViewModel(container.jobRepository) }
     )
     val evidenceViewModel: EvidenceViewModel = viewModel(
-        factory = viewModelFactory { EvidenceViewModel(container.evidenceRepository) }
+        factory = viewModelFactory {
+            EvidenceViewModel(container.evidenceCaptureService, container.evidenceRepository)
+        }
     )
+
+    val driverId = uiState.driver?.id.orEmpty()
+    val shiftId = uiState.currentShiftId
+
+    // Sign-out anywhere in the app returns to the login screen.
+    LaunchedEffect(uiState.isLoggedIn, uiState.isRestoringSession) {
+        if (!uiState.isRestoringSession && !uiState.isLoggedIn) {
+            val current = navController.currentBackStackEntry?.destination?.route
+            if (current != null && current != Screen.Login.route) {
+                navController.navigate(Screen.Login.route) { popUpTo(0) }
+            }
+        }
+    }
 
     Scaffold(
         bottomBar = {
@@ -54,22 +76,28 @@ fun AppNavigation(
                         BottomNavItem("Jobs", Screen.JobsList.route, Icons.AutoMirrored.Filled.List),
                         BottomNavItem("Map", Screen.Map.route, Icons.Filled.LocationOn),
                         BottomNavItem("Messages", Screen.Messages.route, Icons.Filled.Email),
-                        BottomNavItem("More", Screen.More.route, Icons.Filled.Menu)
+                        BottomNavItem("Profile", Screen.More.route, Icons.Filled.Menu)
                     ).forEach { item ->
                         NavigationBarItem(
                             icon = { Icon(item.icon, contentDescription = item.name) },
                             label = { Text(item.name) },
-                            selected = currentDestination?.hierarchy?.any { it.route == item.route } == true,
+                            selected = currentDestination?.hierarchy?.any {
+                                it.route == item.route
+                            } == true,
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = MaterialTheme.colorScheme.onPrimary,
                                 selectedTextColor = MaterialTheme.colorScheme.primary,
                                 indicatorColor = MaterialTheme.colorScheme.primary,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                unselectedIconColor =
+                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                unselectedTextColor =
+                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             ),
                             onClick = {
                                 navController.navigate(item.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
                                     launchSingleTop = true
                                     restoreState = true
                                 }
@@ -96,30 +124,44 @@ fun AppNavigation(
                     viewModel = viewModel,
                     onNavigateToShiftStart = {
                         val current = shiftState.currentShift
-                        if (current != null && current.phase in setOf(ShiftPhase.PRESTART_REQUIRED, ShiftPhase.READY_TO_START)) {
-                            navController.navigate(Screen.PreStartInspection.createRoute(current.id))
+                        val awaitingPreStart = current != null && current.phase in setOf(
+                            ShiftPhase.PRESTART_REQUIRED,
+                            ShiftPhase.READY_TO_START
+                        )
+                        if (awaitingPreStart) {
+                            navController.navigate(
+                                Screen.PreStartInspection.createRoute(current!!.id)
+                            )
                         } else {
                             navController.navigate(Screen.ShiftStart.route)
                         }
                     },
                     onNavigateToJobs = { navController.navigate(Screen.JobsList.route) },
-                    onNavigateToJobDetail = { navController.navigate(Screen.JobDetail.createRoute(it)) }
+                    onNavigateToJobDetail = {
+                        navController.navigate(Screen.JobDetail.createRoute(it))
+                    }
                 )
             }
             composable(Screen.ShiftStart.route) {
                 ShiftStartScreen(
                     viewModel = shiftViewModel,
-                    driverId = uiState.driver?.id.orEmpty(),
+                    driverId = driverId,
                     onNavigateBack = { navController.popBackStack() },
-                    onNavigateToInspection = { navController.navigate(Screen.PreStartInspection.createRoute(it)) }
+                    onNavigateToInspection = {
+                        navController.navigate(Screen.PreStartInspection.createRoute(it))
+                    }
                 )
             }
             composable(Screen.PreStartInspection.route) { entry ->
-                val shiftId = entry.arguments?.getString("shiftId") ?: return@composable
+                val inspectionShiftId = entry.arguments?.getString("shiftId") ?: return@composable
                 val inspectionViewModel: InspectionViewModel = viewModel(
-                    key = "inspection-$shiftId",
+                    key = "inspection-$inspectionShiftId",
                     factory = viewModelFactory {
-                        InspectionViewModel(shiftId, container.inspectionRepository, container.shiftRepository)
+                        InspectionViewModel(
+                            inspectionShiftId,
+                            container.inspectionRepository,
+                            container.shiftRepository
+                        )
                     }
                 )
                 PreStartInspectionScreen(inspectionViewModel) {
@@ -130,102 +172,133 @@ fun AppNavigation(
                 }
             }
             composable(Screen.JobsList.route) {
-                JobsListScreen(viewModel) { navController.navigate(Screen.JobDetail.createRoute(it)) }
+                JobsListScreen(viewModel) {
+                    navController.navigate(Screen.JobDetail.createRoute(it))
+                }
             }
             composable(Screen.JobDetail.route) { entry ->
                 val jobId = entry.arguments?.getString("jobId") ?: return@composable
+                val evidence by container.evidenceRepository.observeForJob(jobId)
+                    .collectAsState(initial = emptyList())
+                val exceptions by container.freightExceptionRepository.observeForJob(jobId)
+                    .collectAsState(initial = emptyList())
                 JobDetailScreen(
                     viewModel = jobViewModel,
                     jobId = jobId,
+                    evidence = evidence,
+                    exceptions = exceptions,
                     onNavigateBack = { navController.popBackStack() },
-                    onNavigateToPickup = { navController.navigate(Screen.Pickup.createRoute(jobId)) },
-                    onNavigateToDelivery = { navController.navigate(Screen.Delivery.createRoute(jobId)) },
+                    onNavigateToPickup = {
+                        navController.navigate(Screen.Pickup.createRoute(jobId))
+                    },
+                    onNavigateToDelivery = {
+                        navController.navigate(Screen.Delivery.createRoute(jobId))
+                    },
                     onNavigateToMap = { navController.navigate(Screen.Map.route) }
                 )
             }
             composable(Screen.Pickup.route) { entry ->
                 val jobId = entry.arguments?.getString("jobId") ?: return@composable
+                val pickupViewModel: PickupViewModel = viewModel(
+                    key = "pickup-$jobId",
+                    factory = viewModelFactory {
+                        PickupViewModel(
+                            jobId = jobId,
+                            driverId = driverId,
+                            shiftId = shiftId,
+                            jobRepository = container.jobRepository,
+                            evidenceRepository = container.evidenceRepository,
+                            exceptionRepository = container.freightExceptionRepository
+                        )
+                    }
+                )
                 PickupScreen(
-                    jobViewModel = jobViewModel,
+                    pickupViewModel = pickupViewModel,
                     evidenceViewModel = evidenceViewModel,
                     jobId = jobId,
+                    driverId = driverId,
+                    shiftId = shiftId,
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToCamera = { evidenceId ->
-                        navController.navigate(Screen.CameraCapture.createRoute(jobId, "pickup", evidenceId))
+                        navController.navigate(
+                            Screen.CameraCapture.createRoute(evidenceId, STAGE_PICKUP)
+                        )
                     },
                     onNavigateToSignature = { evidenceId ->
-                        navController.navigate(Screen.SignatureCapture.createRoute(jobId, evidenceId, "pickup"))
+                        navController.navigate(
+                            Screen.SignatureCapture.createRoute(evidenceId, STAGE_PICKUP)
+                        )
                     },
                     onPickupComplete = { navController.popBackStack() }
                 )
             }
             composable(Screen.Delivery.route) { entry ->
                 val jobId = entry.arguments?.getString("jobId") ?: return@composable
+                val deliveryViewModel: DeliveryViewModel = viewModel(
+                    key = "delivery-$jobId",
+                    factory = viewModelFactory {
+                        DeliveryViewModel(
+                            jobId = jobId,
+                            driverId = driverId,
+                            shiftId = shiftId,
+                            jobRepository = container.jobRepository,
+                            evidenceRepository = container.evidenceRepository,
+                            exceptionRepository = container.freightExceptionRepository
+                        )
+                    }
+                )
                 DeliveryScreen(
-                    jobViewModel = jobViewModel,
+                    deliveryViewModel = deliveryViewModel,
                     evidenceViewModel = evidenceViewModel,
                     jobId = jobId,
+                    driverId = driverId,
+                    shiftId = shiftId,
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToCamera = { evidenceId ->
-                        navController.navigate(Screen.CameraCapture.createRoute(jobId, "delivery", evidenceId))
+                        navController.navigate(
+                            Screen.CameraCapture.createRoute(evidenceId, STAGE_DELIVERY)
+                        )
                     },
                     onNavigateToSignature = { evidenceId ->
-                        navController.navigate(Screen.SignatureCapture.createRoute(jobId, evidenceId, "delivery"))
+                        navController.navigate(
+                            Screen.SignatureCapture.createRoute(evidenceId, STAGE_DELIVERY)
+                        )
                     },
                     onDeliveryComplete = { navController.popBackStack() }
                 )
             }
             composable(Screen.SignatureCapture.route) { entry ->
-                val jobId = entry.arguments?.getString("jobId") ?: return@composable
                 val evidenceId = entry.arguments?.getString("evidenceId") ?: return@composable
-                val scope = rememberCoroutineScope()
-                SignatureScreen(
-                    jobId = jobId,
+                val stage = entry.arguments?.getString("stage") ?: STAGE_DELIVERY
+                SignatureCaptureScreen(
                     evidenceId = evidenceId,
-                    onCancel = {
-                        scope.launch {
-                            evidenceViewModel.applyCaptureResult(evidenceId, CaptureResult.Cancelled)
-                            navController.popBackStack()
-                        }
-                    },
-                    onSignatureSaved = { uri ->
-                        scope.launch {
-                            evidenceViewModel.applyCaptureResult(evidenceId, CaptureResult.Saved(uri))
-                                .onSuccess { navController.popBackStack() }
-                        }
-                    }
+                    title = if (stage == STAGE_PICKUP) "Sender Signature" else "Recipient Signature",
+                    requireSignerName = stage == STAGE_DELIVERY,
+                    evidenceViewModel = evidenceViewModel,
+                    onCancelled = { navController.popBackStack() },
+                    onSaved = { navController.popBackStack() }
                 )
             }
             composable(Screen.CameraCapture.route) { entry ->
-                val jobId = entry.arguments?.getString("jobId") ?: return@composable
-                val type = entry.arguments?.getString("type") ?: "evidence"
                 val evidenceId = entry.arguments?.getString("evidenceId") ?: return@composable
-                val scope = rememberCoroutineScope()
-                CameraScreen(
-                    jobId = jobId,
+                val stage = entry.arguments?.getString("stage") ?: STAGE_PICKUP
+                CameraCaptureScreen(
                     evidenceId = evidenceId,
-                    type = type,
-                    onCancel = {
-                        scope.launch {
-                            evidenceViewModel.applyCaptureResult(evidenceId, CaptureResult.Cancelled)
-                            navController.popBackStack()
-                        }
-                    },
-                    onPhotoSaved = { uri ->
-                        scope.launch {
-                            evidenceViewModel.applyCaptureResult(evidenceId, CaptureResult.Saved(uri))
-                                .onSuccess { navController.popBackStack() }
-                        }
-                    }
+                    title = if (stage == STAGE_PICKUP) "Pickup Photo" else "Delivery Photo",
+                    evidenceViewModel = evidenceViewModel,
+                    onCancelled = { navController.popBackStack() },
+                    onSaved = { navController.popBackStack() }
                 )
             }
             composable(Screen.Map.route) { MapScreen(viewModel) }
             composable(Screen.Messages.route) { MessagesScreen(viewModel) }
             composable(Screen.More.route) {
-                MoreScreen(viewModel, shiftViewModel) {
-                    viewModel.logout()
-                    navController.navigate(Screen.Login.route) { popUpTo(0) }
-                }
+                MoreScreen(
+                    viewModel = viewModel,
+                    shiftViewModel = shiftViewModel,
+                    appVersion = BuildConfig.VERSION_NAME,
+                    onLogout = { viewModel.logout() }
+                )
             }
         }
     }

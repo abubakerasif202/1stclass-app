@@ -23,13 +23,15 @@ sealed class Screen(val route: String) {
     object Delivery : Screen("delivery/{jobId}") {
         fun createRoute(jobId: String) = "delivery/$jobId"
     }
-    object SignatureCapture : Screen("signature/{jobId}/{evidenceId}/{type}") {
-        fun createRoute(jobId: String, evidenceId: String, type: String) =
-            "signature/$jobId/$evidenceId/$type"
+    /**
+     * Capture routes carry only the evidence id — the pending record in Room holds job, type and
+     * driver, so a capture screen survives process death without stale route arguments.
+     */
+    object SignatureCapture : Screen("signature/{evidenceId}/{stage}") {
+        fun createRoute(evidenceId: String, stage: String) = "signature/$evidenceId/$stage"
     }
-    object CameraCapture : Screen("camera/{jobId}/{type}/{evidenceId}") {
-        fun createRoute(jobId: String, type: String, evidenceId: String) =
-            "camera/$jobId/$type/$evidenceId"
+    object CameraCapture : Screen("camera/{evidenceId}/{stage}") {
+        fun createRoute(evidenceId: String, stage: String) = "camera/$evidenceId/$stage"
     }
 }
 

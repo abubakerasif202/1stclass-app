@@ -31,10 +31,14 @@ class MainActivity : ComponentActivity() {
                     val appViewModel: AppViewModel = viewModel(
                         factory = viewModelFactory {
                             AppViewModel(
+                                authRepository = container.authRepository,
+                                sessionRepository = container.sessionRepository,
                                 driverRepository = container.driverRepository,
                                 jobRepository = container.jobRepository,
                                 shiftRepository = container.shiftRepository,
-                                prototypeSeedData = container.prototypeSeedData
+                                syncRepository = container.syncRepository,
+                                bootstrap = container.bootstrapper::ensureReady,
+                                appVersionName = BuildConfig.VERSION_NAME
                             )
                         }
                     )
