@@ -1,0 +1,6 @@
+{
+  "name": "1st Class Express",
+  "description": "Native Android driver application for 1st Class Express, an Australian interstate freight and transport company.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
