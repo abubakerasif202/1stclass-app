@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.example.data.local.AppDatabase
 import com.example.data.local.JobPayloadCodec
 import com.example.data.local.entity.JobEntity
+import com.example.data.seed.PrototypeSeedData
 import com.example.domain.model.EvidenceStatus
 import com.example.domain.model.EvidenceType
 import com.example.domain.model.ShiftPhase
@@ -87,6 +88,21 @@ class RoomRepositoriesTest {
         val id = repository.createPending("j1", EvidenceType.PICKUP_PHOTO).getOrThrow()
 
         assertEquals(EvidenceStatus.PENDING_CAPTURE.name, database.evidenceDao().getById(id)!!.status)
+    }
+
+    @Test
+    fun secondSeedDoesNotOverwriteChangedJobStatus() = runTest {
+        val seed = PrototypeSeedData(database, codec, clock)
+        seed.seedIfEmpty()
+        val initialCount = database.jobDao().count()
+        val seeded = seed.jobs.first { it.status == JobStatus.ASSIGNED }
+        val repository = RoomJobRepository(database, codec, clock, idGenerator)
+
+        repository.transition(seeded.id, JobStatus.IN_PROGRESS).getOrThrow()
+        seed.seedIfEmpty()
+
+        assertEquals(initialCount, database.jobDao().count())
+        assertEquals(JobStatus.IN_PROGRESS.name, database.jobDao().getById(seeded.id)!!.status)
     }
 
     private fun sampleJob(id: String, status: JobStatus): Job = Job(
