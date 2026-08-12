@@ -4,64 +4,76 @@
 
 **Goal:** Convert the current AI Studio prototype into a locally durable, safety-correct Android driver-app foundation while preserving the existing 1st Class Express Compose experience.
 
-**Architecture:** Keep the current screens and navigation recognizable, but move operational truth out of Compose `remember` state and the monolithic `AppViewModel`. Introduce explicit domain rules, focused repositories, Room persistence, a durable sync queue, and feature ViewModels; remote API, real CameraX capture, GPS tracking and dispatch integration remain outside Phase 1.
+**Architecture:** Keep the current screens visually recognizable, but move shift, inspection, job, evidence and sync truth out of Compose `remember` state and the monolithic `AppViewModel`. Domain rules decide what is legal; Room stores durable state; repositories are the only mutation boundary; feature ViewModels translate repository state into Compose UI state. Production backend auth, real CameraX, Google Maps, live GPS and FCM remain outside Phase 1.
 
-**Tech Stack:** Kotlin 2.2.10, Jetpack Compose / Material 3, Android Gradle Plugin 9.1.1, Room 2.7.0 with KSP, Coroutines/Flow, AndroidX ViewModel, AndroidX WorkManager for the sync worker shell, JUnit 4, Robolectric, AndroidX Test.
+**Tech Stack:** Kotlin 2.2.10, Jetpack Compose / Material 3, Android Gradle Plugin 9.1.1, Room 2.7.0 with KSP, Moshi, Coroutines/Flow, AndroidX ViewModel, JUnit 4, Robolectric and AndroidX Test.
 
 ## Global Constraints
 
 - Work directly on `main` as approved, with small logically separated commits.
 - Preserve the existing black/gold/red visual identity and current Compose navigation structure where practical.
-- Do not change the permanent application ID during Phase 1; keep `com.aistudio.firstclassexpress.abcde` until the deliberate pre-production package migration.
-- Do not add production backend authentication, real CameraX capture, Google Maps UI, active GPS tracking, FCM messaging, or dispatcher TMS integration in Phase 1.
-- The local Room database is the source of truth for shift, inspection, job, evidence and sync state.
+- Keep the current application ID `com.aistudio.firstclassexpress.abcde` during Phase 1.
+- Do not add production backend authentication, real CameraX capture, Google Maps UI, active GPS tracking, FCM messaging or dispatcher TMS integration in Phase 1.
+- Room is the local source of truth for shift, inspection, job, evidence and sync state.
 - No safety or evidence operation may report success before durable local persistence succeeds.
 - Inspection items default to `UNANSWERED`, never `PASS`.
 - Critical defects block shift activation.
 - `UNASSIGNED` jobs cannot be started.
-- Invalid job-state skips must be rejected by domain logic, not merely hidden in the UI.
-- Opening a camera or signature screen must never satisfy an evidence requirement by itself.
-- Production code must not use destructive Room migration fallback.
-- Keep mock data only as a clearly isolated prototype seed source.
+- Invalid job-state skips are rejected by domain/repository logic even if a UI bug exposes the wrong button.
+- Opening a camera or signature screen never satisfies an evidence requirement.
+- Production database construction must not call `fallbackToDestructiveMigration()`.
+- Mock transport data is seed-only and cannot overwrite driver-entered local state on later launches.
+- Phase 1 does not claim that prototype camera/signature evidence is production POD; the data contract is hardened first and real capture replaces the prototype in Phase 2.
 
 ---
 
-## File Structure Locked for Phase 1
+## Locked File Structure
 
 ### Existing files to modify
 
-- `app/build.gradle.kts` — build cleanup, WorkManager dependency, remove unused Firebase AI/App Check and custom debug signing.
-- `build.gradle.kts` — remove plugins that become unused after Firebase/Secrets cleanup if no other feature needs them.
-- `gradle/libs.versions.toml` — add WorkManager alias and remove AI-only aliases only when no longer referenced.
-- `.env.example` — remove unused Gemini/Firebase AI keys and keep only keys still consumed by the Android app.
-- `app/src/main/AndroidManifest.xml` — disable uncontrolled backup for operational data and keep exported components minimal.
-- `app/src/main/java/com/example/model/Models.kt` — preserve current screen-facing models while adding only compatibility fields required by the new repositories.
-- `app/src/main/java/com/example/data/MockData.kt` — convert into deterministic seed input only.
-- `app/src/main/java/com/example/viewmodel/AppViewModel.kt` — reduce to session/login shell plus aggregate read-only app state; remove safety/job mutation authority.
-- `app/src/main/java/com/example/navigation/AppNavigation.kt` — wire feature ViewModels and corrected shift/evidence result flow.
-- `app/src/main/java/com/example/ui/screens/ShiftStartScreen.kt` — save a shift draft, never activate a shift.
-- `app/src/main/java/com/example/ui/screens/PreStartInspectionScreen.kt` — render persisted inspection answers and defect details.
-- `app/src/main/java/com/example/ui/screens/JobDetailScreen.kt` — obtain allowed actions from the job domain rule layer.
-- `app/src/main/java/com/example/ui/screens/Workflows.kt` — base completion on persisted evidence records.
-- `app/src/main/java/com/example/ui/screens/EvidenceScreens.kt` — return an explicit saved/cancelled result; do not report success on navigation.
-- Generated/template tests under `app/src/test/java/com/example/` and `app/src/androidTest/java/com/example/` — replace irrelevant template assertions.
+- `app/build.gradle.kts`
+- `build.gradle.kts`
+- `gradle/libs.versions.toml`
+- `app/src/main/AndroidManifest.xml`
+- `app/src/main/java/com/example/MainActivity.kt`
+- `app/src/main/java/com/example/model/Models.kt`
+- `app/src/main/java/com/example/data/MockData.kt` — removed after its data is moved into seed-only code.
+- `app/src/main/java/com/example/viewmodel/AppViewModel.kt`
+- `app/src/main/java/com/example/navigation/AppNavigation.kt`
+- `app/src/main/java/com/example/ui/screens/ShiftStartScreen.kt`
+- `app/src/main/java/com/example/ui/screens/PreStartInspectionScreen.kt`
+- `app/src/main/java/com/example/ui/screens/JobsListScreen.kt`
+- `app/src/main/java/com/example/ui/screens/JobDetailScreen.kt`
+- `app/src/main/java/com/example/ui/screens/Workflows.kt`
+- `app/src/main/java/com/example/ui/screens/EvidenceScreens.kt`
+- `app/src/androidTest/java/com/example/ExampleInstrumentedTest.kt`
+
+### Existing generated files to delete
+
+- `.env.example` — it contains only the unused Gemini placeholder.
+- `app/src/test/java/com/example/ExampleUnitTest.kt`
+- `app/src/test/java/com/example/ExampleRobolectricTest.kt`
+- `app/src/test/java/com/example/GreetingScreenshotTest.kt`
 
 ### New domain files
 
 - `app/src/main/java/com/example/domain/model/OperationalModels.kt`
+- `app/src/main/java/com/example/domain/model/InspectionChecklist.kt`
 - `app/src/main/java/com/example/domain/rules/JobTransitionRules.kt`
 - `app/src/main/java/com/example/domain/rules/InspectionRules.kt`
 - `app/src/main/java/com/example/domain/rules/ShiftRules.kt`
 - `app/src/main/java/com/example/domain/rules/EvidenceRules.kt`
+- `app/src/main/java/com/example/domain/repository/DriverRepository.kt`
 - `app/src/main/java/com/example/domain/repository/ShiftRepository.kt`
 - `app/src/main/java/com/example/domain/repository/InspectionRepository.kt`
 - `app/src/main/java/com/example/domain/repository/JobRepository.kt`
 - `app/src/main/java/com/example/domain/repository/EvidenceRepository.kt`
 - `app/src/main/java/com/example/domain/repository/SyncRepository.kt`
 
-### New local data files
+### New local-data files
 
 - `app/src/main/java/com/example/data/local/AppDatabase.kt`
+- `app/src/main/java/com/example/data/local/JobPayloadCodec.kt`
 - `app/src/main/java/com/example/data/local/entity/DriverEntity.kt`
 - `app/src/main/java/com/example/data/local/entity/VehicleEntity.kt`
 - `app/src/main/java/com/example/data/local/entity/ShiftEntity.kt`
@@ -70,14 +82,16 @@
 - `app/src/main/java/com/example/data/local/entity/JobEntity.kt`
 - `app/src/main/java/com/example/data/local/entity/EvidenceEntity.kt`
 - `app/src/main/java/com/example/data/local/entity/SyncOperationEntity.kt`
+- `app/src/main/java/com/example/data/local/dao/ReferenceDataDao.kt`
 - `app/src/main/java/com/example/data/local/dao/ShiftDao.kt`
 - `app/src/main/java/com/example/data/local/dao/InspectionDao.kt`
 - `app/src/main/java/com/example/data/local/dao/JobDao.kt`
 - `app/src/main/java/com/example/data/local/dao/EvidenceDao.kt`
 - `app/src/main/java/com/example/data/local/dao/SyncOperationDao.kt`
 
-### New repository/bootstrapping files
+### New repository/bootstrap files
 
+- `app/src/main/java/com/example/data/repository/RoomDriverRepository.kt`
 - `app/src/main/java/com/example/data/repository/RoomShiftRepository.kt`
 - `app/src/main/java/com/example/data/repository/RoomInspectionRepository.kt`
 - `app/src/main/java/com/example/data/repository/RoomJobRepository.kt`
@@ -85,6 +99,8 @@
 - `app/src/main/java/com/example/data/repository/RoomSyncRepository.kt`
 - `app/src/main/java/com/example/data/seed/PrototypeSeedData.kt`
 - `app/src/main/java/com/example/AppContainer.kt`
+- `app/src/main/java/com/example/FirstClassExpressApplication.kt`
+- `app/src/main/java/com/example/viewmodel/ViewModelFactories.kt`
 
 ### New feature ViewModels
 
@@ -93,12 +109,9 @@
 - `app/src/main/java/com/example/viewmodel/JobViewModel.kt`
 - `app/src/main/java/com/example/viewmodel/EvidenceViewModel.kt`
 
-### New sync file
+### New tests
 
-- `app/src/main/java/com/example/sync/SyncWorker.kt`
-
-### New/rewritten tests
-
+- `app/src/test/java/com/example/AppIdentityTest.kt`
 - `app/src/test/java/com/example/domain/rules/JobTransitionRulesTest.kt`
 - `app/src/test/java/com/example/domain/rules/InspectionRulesTest.kt`
 - `app/src/test/java/com/example/domain/rules/ShiftRulesTest.kt`
@@ -107,30 +120,29 @@
 - `app/src/test/java/com/example/data/repository/RoomRepositoriesTest.kt`
 - `app/src/test/java/com/example/viewmodel/ShiftViewModelTest.kt`
 - `app/src/test/java/com/example/viewmodel/JobViewModelTest.kt`
-- `app/src/test/java/com/example/ui/DriverFlowSmokeTest.kt`
-- `app/src/androidTest/java/com/example/ExampleInstrumentedTest.kt` — keep only a correct package/application smoke assertion or replace with an app-launch assertion.
+- `app/src/test/java/com/example/viewmodel/EvidenceViewModelTest.kt`
 
 ---
 
-### Task 1: Stabilize Build Configuration and Remove Generated Template Debt
+### Task 1: Stabilize the Build and Remove Generated Template Debt
 
 **Files:**
 - Modify: `app/build.gradle.kts`
 - Modify: `build.gradle.kts`
 - Modify: `gradle/libs.versions.toml`
-- Modify: `.env.example`
 - Modify: `app/src/main/AndroidManifest.xml`
-- Delete or rewrite: `app/src/test/java/com/example/GreetingScreenshotTest.kt`
-- Delete or rewrite: generated tests that assert `2 + 2`, `My Application`, or unrelated package names
+- Create: `app/src/test/java/com/example/AppIdentityTest.kt`
+- Delete: `.env.example`
+- Delete: `app/src/test/java/com/example/ExampleUnitTest.kt`
+- Delete: `app/src/test/java/com/example/ExampleRobolectricTest.kt`
+- Delete: `app/src/test/java/com/example/GreetingScreenshotTest.kt`
 - Modify: `app/src/androidTest/java/com/example/ExampleInstrumentedTest.kt`
 
 **Interfaces:**
 - Consumes: current Gradle catalog and Android module configuration.
-- Produces: a build that uses standard Android debug signing, contains the Phase 1 dependencies, and has no test references to nonexistent `Greeting()` or unrelated generated application names.
+- Produces: standard Android debug signing, no unused Gemini/Firebase AI dependency chain, no stale generated tests, and backup disabled for future operational data.
 
-- [ ] **Step 1: Write/replace a meaningful baseline unit test**
-
-Create `app/src/test/java/com/example/AppIdentityTest.kt`:
+- [ ] **Step 1: Add a real app-identity unit test**
 
 ```kotlin
 package com.example
@@ -149,54 +161,48 @@ class AppIdentityTest {
 }
 ```
 
-- [ ] **Step 2: Run the current unit-test compilation and capture the baseline failures**
-
-Run:
+- [ ] **Step 2: Run the current unit-test compilation to record the baseline**
 
 ```bash
 gradle :app:testDebugUnitTest
 ```
 
-Expected before cleanup: generated/template tests may fail compilation or assertions because the repository references nonexistent `Greeting()` and stale app/package values.
+Expected before cleanup: generated/template sources may fail because `Greeting()` does not exist and stale app expectations do not match the repository.
 
-- [ ] **Step 3: Remove custom debug signing and unused AI dependencies**
+- [ ] **Step 3: Remove custom debug signing**
 
-In `app/build.gradle.kts`:
+Delete `signingConfigs.create("debugConfig")` and delete the `debug { signingConfig = ... }` override from `app/build.gradle.kts`. Keep release signing environment-based. Android then uses its standard per-user debug keystore instead of requiring `${rootDir}/debug.keystore`.
 
-- delete the `debugConfig` signing config;
-- remove `debug { signingConfig = ... }` so Android uses the standard generated debug keystore;
-- remove `implementation(platform(libs.firebase.bom))`, `implementation(libs.firebase.ai)` and `implementation(libs.firebase.appcheck.recaptcha)` because no Phase 1 source consumes them;
-- remove `alias(libs.plugins.google.services)` from this module if no Firebase service remains;
-- remove the secrets plugin only if `.env` is no longer consumed by a remaining Maps configuration in this phase;
-- add WorkManager:
+- [ ] **Step 4: Remove the unused AI/Firebase generation scaffold**
+
+From `app/build.gradle.kts` remove:
 
 ```kotlin
-implementation(libs.androidx.work.runtime.ktx)
+import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+alias(libs.plugins.google.services)
+alias(libs.plugins.secrets)
+implementation(platform(libs.firebase.bom))
+implementation(libs.firebase.ai)
+implementation(libs.firebase.appcheck.recaptcha)
 ```
 
-In `gradle/libs.versions.toml` add:
+Also remove the `secrets { ... }` and `googleServices { ... }` blocks.
 
-```toml
-workRuntimeKtx = "2.10.1"
+From root `build.gradle.kts`, remove the unused `secrets` and `google-services` plugin aliases. From `gradle/libs.versions.toml`, remove the Firebase AI/App Check/BOM, Secrets Gradle plugin and Google Services entries that become unreferenced. Delete `.env.example` because its only content is the unused Gemini key placeholder.
 
-androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "workRuntimeKtx" }
-```
+Do not remove CameraX, Maps, Location, Retrofit, Moshi or Room dependencies; those remain part of the planned driver-app stack even where their production wiring is deferred.
 
-If removal of Firebase plugins leaves aliases unused, remove those plugin/library aliases in the same commit.
+- [ ] **Step 5: Disable uncontrolled Android backup**
 
-- [ ] **Step 4: Harden backup behavior**
-
-Update `app/src/main/AndroidManifest.xml` so the application uses:
+Set:
 
 ```xml
 android:allowBackup="false"
 ```
 
-Remove `android:dataExtractionRules` and `android:fullBackupContent` while backup is disabled, so future operational data is not silently included in cloud/device backup.
+and remove `android:dataExtractionRules` plus `android:fullBackupContent` from the `<application>` element while backup is disabled.
 
-- [ ] **Step 5: Replace stale generated tests**
-
-`app/src/androidTest/java/com/example/ExampleInstrumentedTest.kt` should assert the actual application ID:
+- [ ] **Step 6: Replace the instrumentation template assertion**
 
 ```kotlin
 package com.example
@@ -210,138 +216,174 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class ExampleInstrumentedTest {
     @Test
-    fun applicationIdIsExpectedPrototypeId() {
+    fun applicationIdMatchesPrototypePackage() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         assertEquals("com.aistudio.firstclassexpress.abcde", context.packageName)
     }
 }
 ```
 
-Delete `GreetingScreenshotTest.kt` unless it is rewritten against a real current screen. Delete the meaningless arithmetic test instead of carrying template debt.
+Delete the three generated unit/screenshot tests listed above rather than retaining meaningless assertions.
 
-- [ ] **Step 6: Run tests again**
-
-Run:
+- [ ] **Step 7: Run the cleaned baseline**
 
 ```bash
 gradle :app:testDebugUnitTest
+gradle :app:assembleDebug
 ```
 
-Expected: unit-test sources compile; `AppIdentityTest` passes; no test references `Greeting`, `My Application`, or `com.example` as the APK application ID.
+Expected: test sources compile, `AppIdentityTest` passes, and the debug APK no longer requires a repository-local debug keystore.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add app/build.gradle.kts build.gradle.kts gradle/libs.versions.toml .env.example app/src/main/AndroidManifest.xml app/src/test app/src/androidTest
+git add -A
 git commit -m "build: stabilize Android project baseline"
 ```
 
 ---
 
-### Task 2: Add Domain Models and Safety-Critical Rule Engines
+### Task 2: Add Domain Models and Safety-Critical Rules
 
 **Files:**
 - Create: `app/src/main/java/com/example/domain/model/OperationalModels.kt`
+- Create: `app/src/main/java/com/example/domain/model/InspectionChecklist.kt`
 - Create: `app/src/main/java/com/example/domain/rules/JobTransitionRules.kt`
 - Create: `app/src/main/java/com/example/domain/rules/InspectionRules.kt`
 - Create: `app/src/main/java/com/example/domain/rules/ShiftRules.kt`
 - Create: `app/src/main/java/com/example/domain/rules/EvidenceRules.kt`
-- Test: `app/src/test/java/com/example/domain/rules/*.kt`
+- Create: `app/src/test/java/com/example/domain/rules/JobTransitionRulesTest.kt`
+- Create: `app/src/test/java/com/example/domain/rules/InspectionRulesTest.kt`
+- Create: `app/src/test/java/com/example/domain/rules/ShiftRulesTest.kt`
+- Create: `app/src/test/java/com/example/domain/rules/EvidenceRulesTest.kt`
 
 **Interfaces:**
 - Consumes: `com.example.model.JobStatus`.
-- Produces:
-  - `InspectionItemStatus`
-  - `DefectSeverity`
-  - `EvidenceStatus`
-  - `EvidenceType`
-  - `SyncStatus`
-  - `ShiftPhase`
-  - `ValidationResult`
-  - `JobTransitionRules.canTransition(from, to)`
-  - `InspectionRules.validate(items, declarationAccepted)`
-  - `ShiftRules.canActivate(inspectionValidation)`
-  - `EvidenceRules.isSatisfied(status)`
+- Produces pure Kotlin domain types and rule functions with no Android/Room dependency.
 
 - [ ] **Step 1: Write failing job-transition tests**
 
-Create `JobTransitionRulesTest.kt` with:
-
 ```kotlin
-@Test
-fun unassignedJobCannotStart() {
-    assertFalse(JobTransitionRules.canTransition(JobStatus.UNASSIGNED, JobStatus.IN_PROGRESS))
-}
+package com.example.domain.rules
 
-@Test
-fun assignedJobCanStart() {
-    assertTrue(JobTransitionRules.canTransition(JobStatus.ASSIGNED, JobStatus.IN_PROGRESS))
-}
+import com.example.model.JobStatus
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
 
-@Test
-fun jobCannotSkipPickupStages() {
-    assertFalse(JobTransitionRules.canTransition(JobStatus.IN_PROGRESS, JobStatus.AT_DELIVERY))
-}
+class JobTransitionRulesTest {
+    @Test fun unassignedJobCannotStart() =
+        assertFalse(JobTransitionRules.canTransition(JobStatus.UNASSIGNED, JobStatus.IN_PROGRESS))
 
-@Test
-fun validDeliveryCompletionIsAllowed() {
-    assertTrue(JobTransitionRules.canTransition(JobStatus.AT_DELIVERY, JobStatus.COMPLETED))
+    @Test fun assignedJobCanStart() =
+        assertTrue(JobTransitionRules.canTransition(JobStatus.ASSIGNED, JobStatus.IN_PROGRESS))
+
+    @Test fun jobCannotSkipPickupStages() =
+        assertFalse(JobTransitionRules.canTransition(JobStatus.IN_PROGRESS, JobStatus.AT_DELIVERY))
+
+    @Test fun deliveryCanCompleteOnlyFromAtDelivery() =
+        assertTrue(JobTransitionRules.canTransition(JobStatus.AT_DELIVERY, JobStatus.COMPLETED))
 }
 ```
 
-- [ ] **Step 2: Write failing inspection, shift and evidence tests**
-
-`InspectionRulesTest.kt` must cover:
+- [ ] **Step 2: Write failing inspection-rule tests**
 
 ```kotlin
-@Test
-fun unansweredMandatoryItemBlocksCompletion() { /* construct UNANSWERED item; expect Invalid */ }
+package com.example.domain.rules
 
-@Test
-fun criticalDefectBlocksVehicleReadiness() { /* critical DEFECT with description; expect Blocked */ }
+import com.example.domain.model.*
+import org.junit.Assert.assertTrue
+import org.junit.Test
 
-@Test
-fun defectRequiresDescriptionAndSeverity() { /* blank description; expect Invalid */ }
+class InspectionRulesTest {
+    @Test
+    fun unansweredMandatoryItemBlocksCompletion() {
+        val answers = listOf(
+            InspectionAnswer("tyres", true, InspectionItemStatus.UNANSWERED)
+        )
+        assertTrue(InspectionRules.validate(answers, true) is ValidationResult.Invalid)
+    }
+
+    @Test
+    fun criticalDefectBlocksVehicleReadiness() {
+        val answers = listOf(
+            InspectionAnswer(
+                itemCode = "brakes",
+                mandatory = true,
+                status = InspectionItemStatus.DEFECT,
+                defectDescription = "Brake pedal drops to floor",
+                defectSeverity = DefectSeverity.CRITICAL
+            )
+        )
+        assertTrue(InspectionRules.validate(answers, true) is ValidationResult.Blocked)
+    }
+
+    @Test
+    fun defectRequiresDescriptionAndSeverity() {
+        val answers = listOf(
+            InspectionAnswer(
+                itemCode = "lights",
+                mandatory = true,
+                status = InspectionItemStatus.DEFECT,
+                defectDescription = "",
+                defectSeverity = null
+            )
+        )
+        assertTrue(InspectionRules.validate(answers, true) is ValidationResult.Invalid)
+    }
+}
 ```
 
-`EvidenceRulesTest.kt`:
+- [ ] **Step 3: Write failing shift/evidence tests**
 
 ```kotlin
-@Test
-fun openingCaptureDoesNotSatisfyEvidence() {
-    assertFalse(EvidenceRules.isSatisfied(EvidenceStatus.PENDING_CAPTURE))
+package com.example.domain.rules
+
+import com.example.domain.model.*
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class ShiftRulesTest {
+    @Test
+    fun invalidInspectionCannotBecomeReady() {
+        val result = ValidationResult.Invalid(listOf("Inspection incomplete"))
+        assertFalse(ShiftRules.canMarkReady(result))
+    }
+
+    @Test
+    fun onlyReadyShiftWithValidInspectionCanActivate() {
+        assertTrue(ShiftRules.canActivate(ShiftPhase.READY_TO_START, ValidationResult.Valid))
+        assertFalse(ShiftRules.canActivate(ShiftPhase.PRESTART_REQUIRED, ValidationResult.Valid))
+    }
 }
 
-@Test
-fun locallySavedEvidenceSatisfiesWorkflowRequirement() {
-    assertTrue(EvidenceRules.isSatisfied(EvidenceStatus.SAVED_LOCAL))
+class EvidenceRulesTest {
+    @Test fun pendingCaptureDoesNotCount() =
+        assertFalse(EvidenceRules.isSatisfied(EvidenceStatus.PENDING_CAPTURE))
+
+    @Test fun savedLocalCounts() =
+        assertTrue(EvidenceRules.isSatisfied(EvidenceStatus.SAVED_LOCAL))
 }
 ```
 
-`ShiftRulesTest.kt`:
-
-```kotlin
-@Test
-fun shiftCannotActivateBeforeValidInspection() {
-    assertFalse(ShiftRules.canActivate(ValidationResult.Invalid(listOf("Inspection incomplete"))))
-}
-```
-
-- [ ] **Step 3: Run rule tests and verify failure**
-
-Run:
+- [ ] **Step 4: Run tests and confirm failure**
 
 ```bash
 gradle :app:testDebugUnitTest --tests "com.example.domain.rules.*"
 ```
 
-Expected: FAIL because the rule/model classes do not exist yet.
+Expected: FAIL because the domain classes do not exist.
 
-- [ ] **Step 4: Implement operational model types**
+- [ ] **Step 5: Implement exact operational types**
 
-`OperationalModels.kt` must define the exact Phase 1 types:
+`OperationalModels.kt`:
 
 ```kotlin
+package com.example.domain.model
+
+import com.example.model.JobStatus
+
 enum class InspectionItemStatus { UNANSWERED, PASS, DEFECT, NOT_APPLICABLE }
 enum class DefectSeverity { MINOR, MAJOR, CRITICAL }
 enum class EvidenceStatus { NONE, PENDING_CAPTURE, SAVED_LOCAL, PENDING_SYNC, SYNCED, FAILED_SYNC }
@@ -357,18 +399,81 @@ data class InspectionAnswer(
     val defectSeverity: DefectSeverity? = null
 )
 
+data class ShiftRecord(
+    val id: String,
+    val driverId: String,
+    val vehicleId: String,
+    val trailerId: String?,
+    val startOdometer: Long,
+    val endOdometer: Long?,
+    val phase: ShiftPhase,
+    val createdAt: Long,
+    val startedAt: Long?,
+    val endedAt: Long?
+)
+
+data class InspectionItemRecord(
+    val id: String,
+    val shiftId: String,
+    val code: String,
+    val label: String,
+    val category: String,
+    val mandatory: Boolean,
+    val status: InspectionItemStatus,
+    val defectDescription: String?,
+    val defectSeverity: DefectSeverity?
+)
+
+data class EvidenceRecord(
+    val id: String,
+    val jobId: String,
+    val type: EvidenceType,
+    val localUri: String?,
+    val status: EvidenceStatus,
+    val createdAt: Long
+)
+
+data class SyncOperation(
+    val id: String,
+    val entityType: String,
+    val entityId: String,
+    val operationType: String,
+    val payloadJson: String,
+    val createdAt: Long,
+    val retryCount: Int,
+    val lastError: String?,
+    val status: SyncStatus
+)
+
 sealed interface ValidationResult {
     data object Valid : ValidationResult
     data class Invalid(val reasons: List<String>) : ValidationResult
     data class Blocked(val reasons: List<String>) : ValidationResult
 }
+
+data class AllowedJobAction(val from: JobStatus, val to: JobStatus)
 ```
 
-- [ ] **Step 5: Implement exact job transition map**
+- [ ] **Step 6: Implement the full inspection checklist**
 
-`JobTransitionRules.kt`:
+`InspectionChecklist.kt` defines immutable checklist items and returns trailer checks only when a trailer is assigned. Include exactly:
+
+```text
+Exterior: Tyres, Wheels, Lights, Indicators, Mirrors, Windscreen, Wipers, Body damage, Registration plates
+Safety: Seatbelt, Horn, Emergency equipment, Fire extinguisher, Warning triangles, First aid kit
+Mechanical: Engine warning lights, Brakes, Steering, Oil/fluid leaks, Fuel level, AdBlue
+Trailer: Trailer connection, Air lines, Electrical connection, Trailer lights, Trailer tyres, Doors, Load restraint
+```
+
+Every created item starts `UNANSWERED`. `NOT_APPLICABLE` is a driver-selected answer, not an initial value.
+
+- [ ] **Step 7: Implement the exact job state map**
 
 ```kotlin
+package com.example.domain.rules
+
+import com.example.model.JobStatus
+
 object JobTransitionRules {
     private val allowed = mapOf(
         JobStatus.ASSIGNED to setOf(JobStatus.IN_PROGRESS),
@@ -376,32 +481,35 @@ object JobTransitionRules {
         JobStatus.AT_PICKUP to setOf(JobStatus.PICKED_UP, JobStatus.ISSUE),
         JobStatus.PICKED_UP to setOf(JobStatus.EN_ROUTE_DELIVERY, JobStatus.ISSUE),
         JobStatus.EN_ROUTE_DELIVERY to setOf(JobStatus.AT_DELIVERY, JobStatus.ISSUE),
-        JobStatus.AT_DELIVERY to setOf(JobStatus.COMPLETED, JobStatus.ISSUE),
-        JobStatus.ISSUE to emptySet()
+        JobStatus.AT_DELIVERY to setOf(JobStatus.COMPLETED, JobStatus.ISSUE)
     )
 
     fun canTransition(from: JobStatus, to: JobStatus): Boolean =
         allowed[from]?.contains(to) == true
+
+    fun allowedNext(from: JobStatus): Set<JobStatus> = allowed[from].orEmpty()
 }
 ```
 
-`UNASSIGNED` and `COMPLETED` intentionally have no outgoing transitions.
+`UNASSIGNED`, `COMPLETED` and `ISSUE` have no automatic outgoing transition in Phase 1.
 
-- [ ] **Step 6: Implement inspection/shift/evidence rules**
+- [ ] **Step 8: Implement inspection, shift and evidence rules**
 
-`InspectionRules.validate` must:
+`InspectionRules.validate` executes these checks in order:
 
-1. reject any mandatory `UNANSWERED` item;
-2. reject any `DEFECT` without a nonblank description and severity;
-3. return `Blocked` when any valid defect has `CRITICAL` severity;
-4. require declaration acceptance;
-5. return `Valid` only after all checks succeed.
+1. declaration must be accepted;
+2. every mandatory answer must be other than `UNANSWERED`;
+3. every `DEFECT` requires nonblank description and non-null severity;
+4. any correctly described `CRITICAL` defect returns `Blocked`;
+5. otherwise return `Valid`.
 
-`ShiftRules.canActivate` returns `true` only for `ValidationResult.Valid`.
+`ShiftRules.canMarkReady(result)` returns true only for `ValidationResult.Valid`.
 
-`EvidenceRules.isSatisfied` returns `true` only for `SAVED_LOCAL`, `PENDING_SYNC`, or `SYNCED`.
+`ShiftRules.canActivate(phase, result)` returns true only when `phase == READY_TO_START` and `result == Valid`.
 
-- [ ] **Step 7: Run tests and commit**
+`EvidenceRules.isSatisfied(status)` returns true only for `SAVED_LOCAL`, `PENDING_SYNC` or `SYNCED`.
+
+- [ ] **Step 9: Run tests and commit**
 
 ```bash
 gradle :app:testDebugUnitTest --tests "com.example.domain.rules.*"
@@ -409,144 +517,203 @@ git add app/src/main/java/com/example/domain app/src/test/java/com/example/domai
 git commit -m "feat: add driver workflow domain rules"
 ```
 
-Expected: all domain-rule tests pass.
+Expected: all rule tests pass.
 
 ---
 
-### Task 3: Introduce Room as the Durable Operational Source of Truth
+### Task 3: Introduce Room Persistence and JSON Mapping
 
 **Files:**
 - Create: `app/src/main/java/com/example/data/local/AppDatabase.kt`
-- Create: `app/src/main/java/com/example/data/local/entity/*.kt`
-- Create: `app/src/main/java/com/example/data/local/dao/*.kt`
+- Create: `app/src/main/java/com/example/data/local/JobPayloadCodec.kt`
+- Create: all entity and DAO files listed in the locked structure
 - Create: `app/src/test/java/com/example/data/local/AppDatabaseTest.kt`
 
 **Interfaces:**
-- Consumes: operational enums from Task 2 and existing `JobStatus`.
-- Produces:
-  - `AppDatabase`
-  - `ShiftDao.observeCurrent(): Flow<ShiftEntity?>`
-  - `InspectionDao.observeForShift(shiftId: String): Flow<List<InspectionItemEntity>>`
-  - `JobDao.observeAll(): Flow<List<JobEntity>>`
-  - `EvidenceDao.observeForJob(jobId: String): Flow<List<EvidenceEntity>>`
-  - `SyncOperationDao.observePending(): Flow<List<SyncOperationEntity>>`
+- Consumes: Task 2 domain enums/records and existing `Job` model.
+- Produces focused DAOs plus explicit entity/domain mapping in repository code.
 
-- [ ] **Step 1: Write failing Room persistence tests**
+- [ ] **Step 1: Create a failing Room test fixture**
 
-Use Robolectric with an in-memory Room database. Tests must prove:
+Use Robolectric and `Room.inMemoryDatabaseBuilder`. The test class creates the DB in `@Before` and closes it in `@After`.
+
+Required tests:
 
 ```kotlin
-@Test
-fun shiftDraftSurvivesRepositoryReRead() = runTest { /* insert then query same values */ }
+@Test fun shiftDraftPersists() = runTest {
+    shiftDao.insert(ShiftEntity("s1", "d1", "TRK-01", null, 1000L, null, "PRESTART_REQUIRED", 10L, null, null))
+    assertEquals("PRESTART_REQUIRED", shiftDao.getById("s1")!!.phase)
+}
 
-@Test
-fun inspectionAnswersArePersistedAsUnansweredUntilDriverResponds() = runTest { /* insert UNANSWERED; query UNANSWERED */ }
+@Test fun inspectionAnswerRemainsUnansweredUntilExplicitlyChanged() = runTest {
+    inspectionDao.insertItem(InspectionItemEntity("i1", "insp1", "s1", "tyres", "Tyres", "Exterior", true, "UNANSWERED", null, null))
+    assertEquals("UNANSWERED", inspectionDao.getItem("i1")!!.status)
+}
 
-@Test
-fun jobStatusPersistsAfterUpdate() = runTest { /* insert ASSIGNED; update IN_PROGRESS; query IN_PROGRESS */ }
+@Test fun evidenceSavedLocalStatePersists() = runTest {
+    evidenceDao.insert(EvidenceEntity("e1", "j1", "PICKUP_PHOTO", "prototype://e1", "SAVED_LOCAL", 20L))
+    assertEquals("SAVED_LOCAL", evidenceDao.getById("e1")!!.status)
+}
 
-@Test
-fun evidenceRecordPersistsSavedLocalState() = runTest { /* insert SAVED_LOCAL; query same */ }
-
-@Test
-fun syncOperationRetainsOriginalCreatedAt() = runTest { /* insert fixed timestamp; query exact timestamp */ }
-```
-
-- [ ] **Step 2: Run database tests to verify failure**
-
-```bash
-gradle :app:testDebugUnitTest --tests "com.example.data.local.AppDatabaseTest"
-```
-
-Expected: FAIL because Room entities/database do not exist.
-
-- [ ] **Step 3: Define entities**
-
-Use string IDs and enum names stored as strings to keep schema inspection straightforward. Required fields:
-
-```text
-DriverEntity: id, name, email
-VehicleEntity: id, registration, trailerRegistration
-ShiftEntity: id, driverId, vehicleId, trailerId, startOdometer, endOdometer, phase, createdAt, startedAt, endedAt
-InspectionEntity: id, shiftId, declarationAccepted, validationState, completedAt
-InspectionItemEntity: id, inspectionId, code, label, category, mandatory, status, defectDescription, defectSeverity
-JobEntity: id, payloadJson, status, updatedAt
-EvidenceEntity: id, jobId, type, localUri, status, createdAt
-SyncOperationEntity: id, entityType, entityId, operationType, payloadJson, createdAt, retryCount, lastError, status
-```
-
-`payloadJson` is acceptable for the existing rich mock job object in Phase 1 so this phase does not explode into a large relational freight schema.
-
-- [ ] **Step 4: Implement focused DAOs**
-
-Each DAO gets only operations for its aggregate. Example `JobDao`:
-
-```kotlin
-@Dao
-interface JobDao {
-    @Query("SELECT * FROM jobs ORDER BY updatedAt DESC")
-    fun observeAll(): Flow<List<JobEntity>>
-
-    @Query("SELECT * FROM jobs WHERE id = :id LIMIT 1")
-    suspend fun getById(id: String): JobEntity?
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsert(job: JobEntity)
-
-    @Query("UPDATE jobs SET status = :status, updatedAt = :updatedAt WHERE id = :id")
-    suspend fun updateStatus(id: String, status: String, updatedAt: Long): Int
+@Test fun syncOperationKeepsOriginalTimestamp() = runTest {
+    syncDao.insert(SyncOperationEntity("o1", "JOB", "j1", "STATUS_CHANGE", "{}", 1234L, 0, null, "PENDING"))
+    assertEquals(1234L, syncDao.getById("o1")!!.createdAt)
 }
 ```
 
-- [ ] **Step 5: Implement database version 1**
-
-`AppDatabase.kt` must register all eight entities and expose the five DAOs. Do not call `fallbackToDestructiveMigration()` in production construction.
-
-- [ ] **Step 6: Run Room tests**
+- [ ] **Step 2: Run the Room test and confirm failure**
 
 ```bash
 gradle :app:testDebugUnitTest --tests "com.example.data.local.AppDatabaseTest"
 ```
 
-Expected: all persistence tests pass.
+Expected: FAIL because entities/DAOs/database are missing.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 3: Define the eight Room entities**
+
+Use these tables and fields:
+
+```text
+drivers: id PK, name, email
+vehicles: id PK, registration, type
+shifts: id PK, driverId, vehicleId, trailerId nullable, startOdometer, endOdometer nullable, phase, createdAt, startedAt nullable, endedAt nullable
+inspections: id PK, shiftId UNIQUE, declarationAccepted, validationState nullable, completedAt nullable
+inspection_items: id PK, inspectionId, shiftId, code, label, category, mandatory, status, defectDescription nullable, defectSeverity nullable
+jobs: id PK, payloadJson, status, updatedAt
+evidence: id PK, jobId, type, localUri nullable, status, createdAt
+sync_operations: id PK, entityType, entityId, operationType, payloadJson, createdAt, retryCount, lastError nullable, status
+```
+
+- [ ] **Step 4: Implement focused DAOs**
+
+Required methods include:
+
+```kotlin
+interface ReferenceDataDao {
+    suspend fun driverCount(): Int
+    suspend fun vehicleCount(): Int
+    suspend fun firstDriver(): DriverEntity?
+    suspend fun insertDriver(driver: DriverEntity)
+    suspend fun insertVehicles(vehicles: List<VehicleEntity>)
+}
+
+interface ShiftDao {
+    fun observeCurrent(): Flow<ShiftEntity?>
+    suspend fun getById(id: String): ShiftEntity?
+    suspend fun insert(entity: ShiftEntity)
+    suspend fun updatePhase(id: String, phase: String, startedAt: Long?): Int
+}
+
+interface InspectionDao {
+    fun observeItems(shiftId: String): Flow<List<InspectionItemEntity>>
+    suspend fun getItems(shiftId: String): List<InspectionItemEntity>
+    suspend fun getInspectionForShift(shiftId: String): InspectionEntity?
+    suspend fun getItem(id: String): InspectionItemEntity?
+    suspend fun insertInspection(entity: InspectionEntity)
+    suspend fun insertItems(items: List<InspectionItemEntity>)
+    suspend fun updateItem(id: String, status: String, description: String?, severity: String?): Int
+    suspend fun updateDeclaration(shiftId: String, accepted: Boolean): Int
+    suspend fun markCompleted(shiftId: String, validationState: String, completedAt: Long): Int
+}
+
+interface JobDao {
+    fun observeAll(): Flow<List<JobEntity>>
+    suspend fun count(): Int
+    suspend fun getById(id: String): JobEntity?
+    suspend fun insertAll(jobs: List<JobEntity>)
+    suspend fun updateStatus(id: String, status: String, updatedAt: Long): Int
+}
+
+interface EvidenceDao {
+    fun observeForJob(jobId: String): Flow<List<EvidenceEntity>>
+    suspend fun getById(id: String): EvidenceEntity?
+    suspend fun insert(entity: EvidenceEntity)
+    suspend fun updateSaved(id: String, uri: String, status: String): Int
+    suspend fun deletePending(id: String): Int
+}
+
+interface SyncOperationDao {
+    fun observePending(): Flow<List<SyncOperationEntity>>
+    suspend fun getById(id: String): SyncOperationEntity?
+    suspend fun insert(entity: SyncOperationEntity)
+    suspend fun updateFailure(id: String, retryCount: Int, error: String): Int
+    suspend fun updateStatus(id: String, status: String): Int
+}
+```
+
+Use actual `@Dao`, `@Query`, `@Insert` annotations and `OnConflictStrategy` appropriate to each method.
+
+- [ ] **Step 5: Add `JobPayloadCodec`**
+
+Use the existing Moshi dependency with `KotlinJsonAdapterFactory`:
+
+```kotlin
+class JobPayloadCodec(
+    moshi: Moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
+) {
+    private val adapter = moshi.adapter(Job::class.java)
+
+    fun encode(job: Job): String = adapter.toJson(job)
+
+    fun decode(payloadJson: String, persistedStatus: String): Job =
+        requireNotNull(adapter.fromJson(payloadJson)).copy(status = JobStatus.valueOf(persistedStatus))
+}
+```
+
+The separate `status` column is authoritative so state transitions do not require rewriting the full JSON payload.
+
+- [ ] **Step 6: Create `AppDatabase` version 1**
+
+Register all eight entities and expose all six DAOs. Do not use destructive migration fallback in production construction.
+
+- [ ] **Step 7: Run Room tests and commit**
 
 ```bash
+gradle :app:testDebugUnitTest --tests "com.example.data.local.AppDatabaseTest"
 git add app/src/main/java/com/example/data/local app/src/test/java/com/example/data/local
 git commit -m "feat: add durable Room operational database"
 ```
 
+Expected: Room persistence tests pass.
+
 ---
 
-### Task 4: Add Repository Contracts, Room Implementations, Prototype Seeding and Sync Queue
+### Task 4: Add Domain Repository Contracts, Room Implementations and Seed-Only Prototype Data
 
 **Files:**
-- Create: `app/src/main/java/com/example/domain/repository/*.kt`
-- Create: `app/src/main/java/com/example/data/repository/*.kt`
+- Create: all repository interface/implementation files listed above
 - Create: `app/src/main/java/com/example/data/seed/PrototypeSeedData.kt`
-- Modify: `app/src/main/java/com/example/data/MockData.kt`
 - Create: `app/src/main/java/com/example/AppContainer.kt`
-- Create: `app/src/main/java/com/example/sync/SyncWorker.kt`
-- Test: `app/src/test/java/com/example/data/repository/RoomRepositoriesTest.kt`
+- Create: `app/src/main/java/com/example/FirstClassExpressApplication.kt`
+- Create: `app/src/main/java/com/example/viewmodel/ViewModelFactories.kt`
+- Modify: `app/src/main/AndroidManifest.xml`
+- Delete after migration: `app/src/main/java/com/example/data/MockData.kt`
+- Create: `app/src/test/java/com/example/data/repository/RoomRepositoriesTest.kt`
 
 **Interfaces:**
-- Produces exact repository contracts:
+- Domain repository contracts return domain records, never Room entities.
 
 ```kotlin
+interface DriverRepository {
+    suspend fun getPrototypeDriver(): Driver?
+}
+
 interface ShiftRepository {
-    fun observeCurrentShift(): Flow<ShiftEntity?>
-    suspend fun createPreStartDraft(vehicleId: String, trailerId: String?, startOdometer: Long): Result<String>
+    fun observeCurrentShift(): Flow<ShiftRecord?>
+    suspend fun createPreStartDraft(driverId: String, vehicleId: String, trailerId: String?, startOdometer: Long): Result<String>
+    suspend fun markReadyToStart(shiftId: String): Result<Unit>
     suspend fun activateShift(shiftId: String): Result<Unit>
     suspend fun endShift(shiftId: String, endOdometer: Long): Result<Unit>
 }
 
 interface InspectionRepository {
-    fun observeItems(shiftId: String): Flow<List<InspectionItemEntity>>
-    suspend fun createForShift(shiftId: String): Result<String>
+    fun observeItems(shiftId: String): Flow<List<InspectionItemRecord>>
+    fun observeDeclaration(shiftId: String): Flow<Boolean>
+    suspend fun ensureForShift(shiftId: String, hasTrailer: Boolean): Result<Unit>
     suspend fun saveAnswer(itemId: String, answer: InspectionAnswer): Result<Unit>
-    suspend fun setDeclaration(inspectionId: String, accepted: Boolean): Result<Unit>
-    suspend fun validate(inspectionId: String): ValidationResult
+    suspend fun setDeclaration(shiftId: String, accepted: Boolean): Result<Unit>
+    suspend fun complete(shiftId: String): ValidationResult
+    suspend fun currentValidation(shiftId: String): ValidationResult
 }
 
 interface JobRepository {
@@ -556,14 +723,14 @@ interface JobRepository {
 }
 
 interface EvidenceRepository {
-    fun observeForJob(jobId: String): Flow<List<EvidenceEntity>>
+    fun observeForJob(jobId: String): Flow<List<EvidenceRecord>>
     suspend fun createPending(jobId: String, type: EvidenceType): Result<String>
     suspend fun markSavedLocal(id: String, localUri: String): Result<Unit>
     suspend fun discardPending(id: String): Result<Unit>
 }
 
 interface SyncRepository {
-    fun observePending(): Flow<List<SyncOperationEntity>>
+    fun observePending(): Flow<List<SyncOperation>>
     suspend fun enqueue(entityType: String, entityId: String, operationType: String, payloadJson: String): Result<String>
     suspend fun markFailure(id: String, error: String): Result<Unit>
     suspend fun markSynced(id: String): Result<Unit>
@@ -572,81 +739,113 @@ interface SyncRepository {
 
 - [ ] **Step 1: Write failing repository tests**
 
-Required behaviors:
+Create deterministic repositories with injectable `clock: () -> Long` and `idGenerator: () -> String`. Required assertions:
 
-- `createPreStartDraft` persists `PRESTART_REQUIRED`, not `ON_DUTY`;
-- `activateShift` refuses activation when inspection validation is not valid;
-- `JobRepository.transition` refuses `UNASSIGNED -> IN_PROGRESS` and `ASSIGNED -> AT_DELIVERY`;
-- valid job transitions update Room and enqueue exactly one sync operation;
-- evidence is not considered saved until `markSavedLocal` succeeds;
-- sync queue preserves the initial operation timestamp across retries.
+```kotlin
+@Test fun preStartDraftIsNotOnDuty() = runTest {
+    val id = shiftRepository.createPreStartDraft("d1", "TRK-01", null, 1000L).getOrThrow()
+    assertEquals(ShiftPhase.PRESTART_REQUIRED, shiftRepository.current(id)!!.phase)
+}
 
-- [ ] **Step 2: Run tests and verify failure**
+@Test fun unassignedJobTransitionIsRejected() = runTest {
+    val result = jobRepository.transition("unassigned-job", JobStatus.IN_PROGRESS)
+    assertTrue(result.isFailure)
+}
+
+@Test fun validJobTransitionQueuesExactlyOneOperation() = runTest {
+    jobRepository.transition("assigned-job", JobStatus.IN_PROGRESS).getOrThrow()
+    assertEquals(1, syncDao.pendingCountFor("JOB", "assigned-job", "STATUS_CHANGE"))
+}
+
+@Test fun pendingEvidenceDoesNotBecomeSavedWithoutUri() = runTest {
+    val id = evidenceRepository.createPending("j1", EvidenceType.PICKUP_PHOTO).getOrThrow()
+    assertEquals(EvidenceStatus.PENDING_CAPTURE, evidenceRepository.get(id)!!.status)
+}
+```
+
+Add test-only helper methods on repositories or DAOs where needed; do not expose Room entities through production domain interfaces.
+
+- [ ] **Step 2: Run repository tests and confirm failure**
 
 ```bash
 gradle :app:testDebugUnitTest --tests "com.example.data.repository.RoomRepositoriesTest"
 ```
 
-- [ ] **Step 3: Implement repository interfaces and Room implementations**
+- [ ] **Step 3: Implement Room repositories with transactional mutation + sync enqueue**
 
-Use `AppDatabase.withTransaction` for state change + sync queue insertion so the UI never sees a local status mutation without its matching pending sync operation.
+`RoomJobRepository.transition` performs this exact sequence:
 
-For example, `RoomJobRepository.transition` must perform:
+1. load current `JobEntity`;
+2. parse current status;
+3. reject when `JobTransitionRules.canTransition` is false;
+4. inside `database.withTransaction`, update the job status and insert one `SyncOperationEntity` with `PENDING` status and the original action timestamp;
+5. return the persisted new status.
+
+`RoomEvidenceRepository.markSavedLocal` must require a nonblank URI, then in one transaction update evidence to `SAVED_LOCAL` and enqueue its sync operation.
+
+`RoomShiftRepository.markReadyToStart` and `activateShift` must re-read persisted inspection state and call `ShiftRules`; a caller cannot bypass inspection by invoking these methods directly.
+
+- [ ] **Step 4: Make inspection creation idempotent**
+
+`RoomInspectionRepository.ensureForShift` checks for an existing inspection by shift ID. If absent, create one inspection plus all checklist items from `InspectionChecklist`. All items are inserted as `UNANSWERED`. Trailer items are included only when `hasTrailer == true`.
+
+- [ ] **Step 5: Implement seed-only prototype data**
+
+Move the current `MockData.currentDriver` and `MockData.sampleJobs` values into `PrototypeSeedData`. Seed only when the relevant table count is zero. The second seed call must not overwrite status changes made after the first seed.
+
+Add at least the currently used prototype vehicle IDs to `vehicles`; do not invent operational fleet facts beyond the existing prototype data.
+
+Delete `MockData.kt` after all imports have migrated.
+
+- [ ] **Step 6: Add application-level dependency construction**
+
+`AppContainer` is concrete and manual:
 
 ```kotlin
-val current = jobDao.getById(id) ?: return Result.failure(IllegalArgumentException("Job not found"))
-val from = JobStatus.valueOf(current.status)
-if (!JobTransitionRules.canTransition(from, to)) {
-    return Result.failure(IllegalStateException("Invalid job transition: $from -> $to"))
-}
-
-database.withTransaction {
-    jobDao.updateStatus(id, to.name, clock())
-    syncDao.insert(
-        SyncOperationEntity(
-            id = uuid(),
-            entityType = "JOB",
-            entityId = id,
-            operationType = "STATUS_CHANGE",
-            payloadJson = "{\"status\":\"${to.name}\"}",
-            createdAt = clock(),
-            retryCount = 0,
-            lastError = null,
-            status = SyncStatus.PENDING.name
-        )
-    )
+class AppContainer(context: Context) {
+    val database = Room.databaseBuilder(context, AppDatabase::class.java, "first-class-express.db").build()
+    val syncRepository: SyncRepository = RoomSyncRepository(database)
+    val driverRepository: DriverRepository = RoomDriverRepository(database.referenceDataDao())
+    val inspectionRepository: InspectionRepository = RoomInspectionRepository(database)
+    val shiftRepository: ShiftRepository = RoomShiftRepository(database, inspectionRepository)
+    val jobRepository: JobRepository = RoomJobRepository(database, JobPayloadCodec())
+    val evidenceRepository: EvidenceRepository = RoomEvidenceRepository(database)
 }
 ```
 
-- [ ] **Step 4: Move mock data into seed-only use**
+Pass the shared `SyncOperationDao`/repository into mutating repositories as needed so all queue writes occur inside the same Room database transaction.
 
-`PrototypeSeedData.kt` converts `MockData.sampleJobs` and `MockData.currentDriver` into Room rows only when the corresponding tables are empty. Screens/ViewModels must no longer import `MockData` after their migrations in later tasks.
-
-- [ ] **Step 5: Add `AppContainer`**
-
-Create a single application-level composition root that builds `AppDatabase` and repository instances. Keep constructor injection manual in Phase 1; do not introduce Hilt solely for this migration.
-
-- [ ] **Step 6: Add a non-destructive sync worker shell**
-
-`SyncWorker` reads pending operations and returns:
+`FirstClassExpressApplication` owns one container:
 
 ```kotlin
-Result.success()
+class FirstClassExpressApplication : Application() {
+    lateinit var container: AppContainer
+        private set
+
+    override fun onCreate() {
+        super.onCreate()
+        container = AppContainer(this)
+    }
+}
 ```
 
-without marking records synced when no remote transport is configured. Its job in Phase 1 is only to prove durable WorkManager integration and preserve queue contents. It must never delete or falsely acknowledge unsent operations.
+Set `android:name=".FirstClassExpressApplication"` in the manifest.
 
-- [ ] **Step 7: Run repository tests and commit**
+- [ ] **Step 7: Add idempotent seed verification**
+
+Run seeding twice, change one job status between runs, and assert the second seed does not restore the original status.
+
+- [ ] **Step 8: Run repository tests and commit**
 
 ```bash
 gradle :app:testDebugUnitTest --tests "com.example.data.repository.RoomRepositoriesTest"
-git add app/src/main/java/com/example/domain/repository app/src/main/java/com/example/data/repository app/src/main/java/com/example/data/seed app/src/main/java/com/example/AppContainer.kt app/src/main/java/com/example/sync app/src/test/java/com/example/data/repository
-git commit -m "feat: add local-first repositories and sync queue"
+git add -A
+git commit -m "feat: add local-first repositories and prototype seed"
 ```
 
 ---
 
-### Task 5: Correct Shift and Pre-Start Workflow End-to-End
+### Task 5: Correct the Shift and Pre-Start Workflow
 
 **Files:**
 - Create: `app/src/main/java/com/example/viewmodel/ShiftViewModel.kt`
@@ -655,147 +854,169 @@ git commit -m "feat: add local-first repositories and sync queue"
 - Modify: `app/src/main/java/com/example/ui/screens/PreStartInspectionScreen.kt`
 - Modify: `app/src/main/java/com/example/navigation/AppNavigation.kt`
 - Modify: `app/src/main/java/com/example/viewmodel/AppViewModel.kt`
-- Test: `app/src/test/java/com/example/viewmodel/ShiftViewModelTest.kt`
+- Create: `app/src/test/java/com/example/viewmodel/ShiftViewModelTest.kt`
 
 **Interfaces:**
-- Consumes: `ShiftRepository`, `InspectionRepository`.
-- Produces:
-  - `ShiftViewModel.beginPreStart(vehicleId, trailerId, odometer)`
-  - `InspectionViewModel.setAnswer(itemId, status, description, severity)`
-  - `InspectionViewModel.setDeclaration(accepted)`
-  - `InspectionViewModel.completeAndActivateShift()`
+- Produces the persisted sequence `OFF_DUTY -> PRESTART_REQUIRED -> READY_TO_START -> ON_DUTY`.
 
-- [ ] **Step 1: Write failing ViewModel workflow tests**
+- [ ] **Step 1: Write failing ViewModel tests**
 
-Required assertions:
+Use fake repository implementations backed by `MutableStateFlow`.
+
+Required tests:
 
 ```kotlin
-@Test
-fun beginPreStartDoesNotSetOnDuty() = runTest { /* draft phase == PRESTART_REQUIRED */ }
+@Test fun beginPreStartDoesNotSetOnDuty() = runTest {
+    viewModel.beginPreStart("d1", "TRK-01", "", "1000")
+    assertEquals(ShiftPhase.PRESTART_REQUIRED, fakeShiftRepository.phase)
+}
 
-@Test
-fun leavingIncompleteInspectionDoesNotActivateShift() = runTest { /* phase remains PRESTART_REQUIRED */ }
+@Test fun incompleteInspectionCannotBecomeReady() = runTest {
+    inspectionViewModel.completeInspection()
+    assertNotEquals(ShiftPhase.READY_TO_START, fakeShiftRepository.phase)
+}
 
-@Test
-fun allMandatoryItemsMustBeAnswered() = runTest { /* completion rejected */ }
+@Test fun criticalDefectCannotBecomeReady() = runTest {
+    fakeInspectionRepository.validation = ValidationResult.Blocked(listOf("Critical defect"))
+    inspectionViewModel.completeInspection()
+    assertEquals(ShiftPhase.PRESTART_REQUIRED, fakeShiftRepository.phase)
+}
 
-@Test
-fun criticalDefectKeepsShiftBlocked() = runTest { /* phase never ON_DUTY */ }
-
-@Test
-fun validInspectionActivatesShiftOnlyAfterPersistence() = runTest { /* phase becomes ON_DUTY */ }
+@Test fun validInspectionBecomesReadyBeforeOnDuty() = runTest {
+    fakeInspectionRepository.validation = ValidationResult.Valid
+    inspectionViewModel.completeInspection()
+    assertEquals(ShiftPhase.READY_TO_START, fakeShiftRepository.phase)
+    inspectionViewModel.activateShift()
+    assertEquals(ShiftPhase.ON_DUTY, fakeShiftRepository.phase)
+}
 ```
 
-- [ ] **Step 2: Run tests and verify failure**
+- [ ] **Step 2: Run tests and confirm failure**
 
 ```bash
 gradle :app:testDebugUnitTest --tests "com.example.viewmodel.ShiftViewModelTest"
 ```
 
-- [ ] **Step 3: Implement `ShiftViewModel`**
+- [ ] **Step 3: Implement `ShiftViewModel.beginPreStart`**
 
-`beginPreStart` validates numeric odometer, creates a Room draft and creates the inspection. It emits a navigation event only after both durable operations succeed. It never calls an `ON_DUTY` mutation.
+Validate:
+
+- vehicle ID nonblank;
+- odometer parses to a non-negative `Long`;
+- blank trailer becomes `null`.
+
+Create the draft through `ShiftRepository`, then call `InspectionRepository.ensureForShift`. Emit navigation to the inspection only after both calls succeed. Never set `ON_DUTY` here.
 
 - [ ] **Step 4: Implement `InspectionViewModel`**
 
-Expose a `StateFlow<InspectionUiState>` containing persisted item answers, declaration state, validation messages and `canComplete`. `completeAndActivateShift()` must:
+Expose `StateFlow<InspectionUiState>` built from persisted item/declaration flows. `setAnswer` saves immediately to Room. `completeInspection()` calls `InspectionRepository.complete`; only `Valid` may call `ShiftRepository.markReadyToStart`. It does not activate the shift.
 
-1. validate through `InspectionRepository`;
-2. if `Valid`, call `ShiftRepository.activateShift`;
-3. emit completion navigation only after activation succeeds;
-4. preserve current state and show reasons for `Invalid` or `Blocked`.
+`activateShift()` is a separate action visible only when the persisted phase is `READY_TO_START`.
 
-- [ ] **Step 5: Rewrite `ShiftStartScreen` interaction**
+- [ ] **Step 5: Rewrite `ShiftStartScreen`**
 
-Replace:
+Replace the current direct call:
 
 ```kotlin
 viewModel.startShift(vehicleId, odometer)
 onNavigateToInspection()
 ```
 
-with a single ViewModel call that saves the draft. Navigate only after the ViewModel emits `PreStartCreated(shiftId)`.
+with `ShiftViewModel.beginPreStart(...)`. Navigation follows a success event from persisted draft creation.
 
-Do not keep vehicle ID or odometer as business truth in `remember` after submission.
+- [ ] **Step 6: Rewrite `PreStartInspectionScreen`**
 
-- [ ] **Step 6: Rewrite inspection item state**
-
-Every rendered item comes from persisted `InspectionItemEntity.status`. Initial selection is none (`UNANSWERED`). Render three actions:
+Remove local per-item `remember` state. Render values from `InspectionUiState`. Each item has:
 
 ```text
 PASS | DEFECT | N/A
 ```
 
-When `DEFECT` is selected, show required severity (`MINOR`, `MAJOR`, `CRITICAL`) and description. The declaration checkbox is insufficient by itself; `Complete Inspection` is enabled only when the repository/domain validation says the form is complete and has no blocking critical defect.
+When `DEFECT` is selected, show required severity and description controls. The summary area displays unanswered count and blocking reasons.
 
-- [ ] **Step 7: Wire navigation and remove `AppViewModel.startShift` authority**
+After a valid completion, show a distinct `START SHIFT` action. A back press before that action leaves the shift `PRESTART_REQUIRED` or `READY_TO_START`, never `ON_DUTY`.
 
-`AppNavigation.kt` obtains feature ViewModels from repositories in `AppContainer`. `AppViewModel.startShift` is deleted after all callers move to `ShiftViewModel`.
+- [ ] **Step 7: Remove old `AppViewModel.startShift`**
+
+Once navigation uses the feature ViewModels, delete the unrestricted shift mutation method. `AppViewModel` may observe the repository to render aggregate home state, but it cannot mutate shift safety state directly.
 
 - [ ] **Step 8: Run tests and commit**
 
 ```bash
 gradle :app:testDebugUnitTest --tests "com.example.viewmodel.ShiftViewModelTest"
-git add app/src/main/java/com/example/viewmodel app/src/main/java/com/example/ui/screens/ShiftStartScreen.kt app/src/main/java/com/example/ui/screens/PreStartInspectionScreen.kt app/src/main/java/com/example/navigation/AppNavigation.kt app/src/test/java/com/example/viewmodel
+git add -A
 git commit -m "fix: enforce pre-start before shift activation"
 ```
 
 ---
 
-### Task 6: Move Job Progression Authority into the Repository and Domain Layer
+### Task 6: Move Job Progression Authority into Domain/Repository Logic
 
 **Files:**
 - Create: `app/src/main/java/com/example/viewmodel/JobViewModel.kt`
-- Modify: `app/src/main/java/com/example/ui/screens/JobDetailScreen.kt`
 - Modify: `app/src/main/java/com/example/ui/screens/JobsListScreen.kt`
+- Modify: `app/src/main/java/com/example/ui/screens/JobDetailScreen.kt`
 - Modify: `app/src/main/java/com/example/navigation/AppNavigation.kt`
 - Modify: `app/src/main/java/com/example/viewmodel/AppViewModel.kt`
-- Test: `app/src/test/java/com/example/viewmodel/JobViewModelTest.kt`
+- Create: `app/src/test/java/com/example/viewmodel/JobViewModelTest.kt`
 
 **Interfaces:**
-- Consumes: `JobRepository`, `JobTransitionRules`.
-- Produces:
-  - `JobViewModel.observeJob(jobId)`
-  - `JobViewModel.requestTransition(to: JobStatus)`
-  - `JobUiState.allowedNextStatuses`
-  - `JobUiState.errorMessage`
-
-- [ ] **Step 1: Write failing ViewModel tests**
 
 ```kotlin
-@Test
-fun unassignedJobHasNoStartAction() = runTest { /* allowedNextStatuses excludes IN_PROGRESS */ }
-
-@Test
-fun assignedJobOffersInProgressOnly() = runTest { /* includes IN_PROGRESS; excludes AT_DELIVERY */ }
-
-@Test
-fun invalidTransitionReturnsVisibleErrorAndDoesNotMutateRoom() = runTest { /* status unchanged */ }
+data class JobUiState(
+    val job: Job? = null,
+    val allowedNextStatuses: Set<JobStatus> = emptySet(),
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null
+)
 ```
 
-- [ ] **Step 2: Run tests to verify failure**
+- [ ] **Step 1: Write failing JobViewModel tests**
+
+```kotlin
+@Test fun unassignedJobHasNoStartAction() = runTest {
+    fakeRepository.current = sampleJob(status = JobStatus.UNASSIGNED)
+    viewModel.observeJob(fakeRepository.current.id)
+    assertFalse(viewModel.uiState.value.allowedNextStatuses.contains(JobStatus.IN_PROGRESS))
+}
+
+@Test fun assignedJobCanOnlyStartNormally() = runTest {
+    fakeRepository.current = sampleJob(status = JobStatus.ASSIGNED)
+    viewModel.observeJob(fakeRepository.current.id)
+    assertTrue(viewModel.uiState.value.allowedNextStatuses.contains(JobStatus.IN_PROGRESS))
+    assertFalse(viewModel.uiState.value.allowedNextStatuses.contains(JobStatus.AT_DELIVERY))
+}
+
+@Test fun repositoryRejectionDoesNotChangeDisplayedStatus() = runTest {
+    fakeRepository.rejectTransitions = true
+    viewModel.requestTransition(JobStatus.AT_DELIVERY)
+    assertNotNull(viewModel.uiState.value.errorMessage)
+}
+```
+
+- [ ] **Step 2: Run tests and confirm failure**
 
 ```bash
 gradle :app:testDebugUnitTest --tests "com.example.viewmodel.JobViewModelTest"
 ```
 
-- [ ] **Step 3: Implement `JobViewModel` from repository state**
+- [ ] **Step 3: Implement `JobViewModel`**
 
-Allowed actions are calculated from the current persisted status and `JobTransitionRules`. UI requests go through `JobRepository.transition`; the ViewModel never writes a copied in-memory job list directly.
+The ViewModel calculates `allowedNextStatuses` with `JobTransitionRules.allowedNext(current.status)`. `requestTransition` always calls `JobRepository.transition`; it never updates a copied list directly.
 
-- [ ] **Step 4: Fix `JobDetailScreen`**
+- [ ] **Step 4: Fix the job screens**
 
-Remove the current branch that treats `UNASSIGNED` and `ASSIGNED` identically. The screen renders actions from `allowedNextStatuses` and shows a validation message if the repository rejects a transition.
+Delete the current behavior that groups `UNASSIGNED` and `ASSIGNED` under the same `Start Job` branch. Render actions from `allowedNextStatuses`. On repository rejection, display the error and keep the persisted status unchanged.
 
-- [ ] **Step 5: Remove `AppViewModel.updateJobStatus` authority**
+- [ ] **Step 5: Remove old unrestricted job mutation**
 
-After all job-screen callers use `JobViewModel`, delete the unrestricted `updateJobStatus(jobId, newStatus)` function and make `AppViewModel` observe jobs from `JobRepository` only if aggregate home-screen state still needs them.
+Delete `AppViewModel.updateJobStatus(jobId, newStatus)` after all callers migrate. Home/Jobs aggregate lists observe `JobRepository.observeJobs()`.
 
 - [ ] **Step 6: Run tests and commit**
 
 ```bash
 gradle :app:testDebugUnitTest --tests "com.example.viewmodel.JobViewModelTest"
-git add app/src/main/java/com/example/viewmodel/JobViewModel.kt app/src/main/java/com/example/ui/screens/JobDetailScreen.kt app/src/main/java/com/example/ui/screens/JobsListScreen.kt app/src/main/java/com/example/navigation/AppNavigation.kt app/src/main/java/com/example/viewmodel/AppViewModel.kt app/src/test/java/com/example/viewmodel/JobViewModelTest.kt
+git add -A
 git commit -m "fix: validate driver job state transitions"
 ```
 
@@ -808,60 +1029,9 @@ git commit -m "fix: validate driver job state transitions"
 - Modify: `app/src/main/java/com/example/ui/screens/Workflows.kt`
 - Modify: `app/src/main/java/com/example/ui/screens/EvidenceScreens.kt`
 - Modify: `app/src/main/java/com/example/navigation/AppNavigation.kt`
-- Test: `app/src/test/java/com/example/domain/rules/EvidenceRulesTest.kt`
-- Test: `app/src/test/java/com/example/ui/DriverFlowSmokeTest.kt`
+- Create: `app/src/test/java/com/example/viewmodel/EvidenceViewModelTest.kt`
 
 **Interfaces:**
-- Consumes: `EvidenceRepository`, `EvidenceRules`.
-- Produces:
-  - `EvidenceViewModel.beginCapture(jobId, type)` -> pending evidence ID
-  - `EvidenceViewModel.confirmSaved(evidenceId, localUri)`
-  - `EvidenceViewModel.cancelCapture(evidenceId)`
-  - `EvidenceViewModel.hasSatisfiedEvidence(jobId, type)`
-
-- [ ] **Step 1: Add a failing smoke test for cancelled capture**
-
-The test must drive the pickup workflow as follows:
-
-```text
-Open pickup -> Tap Take Photo -> capture screen opens -> Back/Cancel -> return to pickup
-```
-
-Expected: pickup still reports photo evidence as missing and completion remains disabled when photo evidence is required.
-
-Add the same behavior for signature capture.
-
-- [ ] **Step 2: Run the evidence/smoke tests and verify failure**
-
-```bash
-gradle :app:testDebugUnitTest --tests "com.example.domain.rules.EvidenceRulesTest" --tests "com.example.ui.DriverFlowSmokeTest"
-```
-
-- [ ] **Step 3: Implement `EvidenceViewModel`**
-
-`beginCapture` persists `PENDING_CAPTURE`. `confirmSaved` requires a nonblank local URI and persists `SAVED_LOCAL` plus a pending sync operation. `cancelCapture` deletes/discards only the pending placeholder and never creates a satisfied state.
-
-- [ ] **Step 4: Fix workflow screens**
-
-Delete patterns equivalent to:
-
-```kotlin
-hasPhoto = true
-onNavigateToCamera()
-```
-
-and:
-
-```kotlin
-hasSignature = true
-onNavigateToSignature()
-```
-
-The workflow derives its evidence checklist from `EvidenceRepository.observeForJob`. Only statuses accepted by `EvidenceRules.isSatisfied` render as complete.
-
-- [ ] **Step 5: Make evidence screens return explicit results**
-
-In Phase 1, the existing prototype capture UI may still use a mock local file/URI generator, but the result contract must be explicit:
 
 ```kotlin
 sealed interface CaptureResult {
@@ -870,92 +1040,141 @@ sealed interface CaptureResult {
 }
 ```
 
-`Saved` is passed to `confirmSaved`; `Cancelled` is passed to `cancelCapture`.
+`EvidenceViewModel` provides:
 
-The signature screen must not claim durable POD metadata beyond what Phase 1 actually persists.
+```kotlin
+suspend fun beginCapture(jobId: String, type: EvidenceType): Result<String>
+suspend fun applyCaptureResult(evidenceId: String, result: CaptureResult): Result<Unit>
+fun isRequirementSatisfied(records: List<EvidenceRecord>, type: EvidenceType): Boolean
+```
+
+- [ ] **Step 1: Write failing evidence tests**
+
+```kotlin
+@Test fun cancelledPhotoDoesNotSatisfyRequirement() = runTest {
+    val evidenceId = viewModel.beginCapture("j1", EvidenceType.PICKUP_PHOTO).getOrThrow()
+    viewModel.applyCaptureResult(evidenceId, CaptureResult.Cancelled).getOrThrow()
+    assertFalse(viewModel.isRequirementSatisfied(fakeRepository.records, EvidenceType.PICKUP_PHOTO))
+}
+
+@Test fun savedPhotoSatisfiesRequirementOnlyAfterRepositorySave() = runTest {
+    val evidenceId = viewModel.beginCapture("j1", EvidenceType.PICKUP_PHOTO).getOrThrow()
+    assertFalse(viewModel.isRequirementSatisfied(fakeRepository.records, EvidenceType.PICKUP_PHOTO))
+    viewModel.applyCaptureResult(evidenceId, CaptureResult.Saved("prototype://j1/photo-1")).getOrThrow()
+    assertTrue(viewModel.isRequirementSatisfied(fakeRepository.records, EvidenceType.PICKUP_PHOTO))
+}
+```
+
+Add equivalent signature cancellation/save coverage.
+
+- [ ] **Step 2: Run tests and confirm failure**
+
+```bash
+gradle :app:testDebugUnitTest --tests "com.example.viewmodel.EvidenceViewModelTest"
+```
+
+- [ ] **Step 3: Implement `EvidenceViewModel`**
+
+`beginCapture` persists `PENDING_CAPTURE`. `Saved` calls `markSavedLocal`; `Cancelled` calls `discardPending`. Satisfaction uses `EvidenceRules.isSatisfied` over repository records.
+
+- [ ] **Step 4: Fix workflow screens**
+
+Remove all optimistic patterns equivalent to:
+
+```kotlin
+hasPhoto = true
+hasSignature = true
+```
+
+before navigation. Pickup/delivery workflow checkmarks are derived from persisted evidence records.
+
+- [ ] **Step 5: Make prototype evidence explicit**
+
+Because real CameraX/signature-file output is Phase 2, the existing prototype screens return a `prototype://...` URI only after the user explicitly confirms Save. Cancelling/back returns `CaptureResult.Cancelled`. Add a visible `Prototype capture` label so this phase does not misrepresent placeholder evidence as production POD.
 
 - [ ] **Step 6: Run tests and commit**
 
 ```bash
-gradle :app:testDebugUnitTest --tests "com.example.domain.rules.EvidenceRulesTest" --tests "com.example.ui.DriverFlowSmokeTest"
-git add app/src/main/java/com/example/viewmodel/EvidenceViewModel.kt app/src/main/java/com/example/ui/screens/Workflows.kt app/src/main/java/com/example/ui/screens/EvidenceScreens.kt app/src/main/java/com/example/navigation/AppNavigation.kt app/src/test/java/com/example/domain/rules/EvidenceRulesTest.kt app/src/test/java/com/example/ui/DriverFlowSmokeTest.kt
+gradle :app:testDebugUnitTest --tests "com.example.viewmodel.EvidenceViewModelTest"
+git add -A
 git commit -m "fix: require persisted proof before workflow completion"
 ```
 
 ---
 
-### Task 8: Seed Prototype Data Through Room and Finish App-State Migration
+### Task 8: Complete App-State Migration and Seed Through Room
 
 **Files:**
 - Modify: `app/src/main/java/com/example/MainActivity.kt`
 - Modify: `app/src/main/java/com/example/viewmodel/AppViewModel.kt`
-- Modify: `app/src/main/java/com/example/data/MockData.kt`
-- Modify: `app/src/main/java/com/example/data/seed/PrototypeSeedData.kt`
 - Modify: `app/src/main/java/com/example/navigation/AppNavigation.kt`
-- Test: `app/src/test/java/com/example/data/repository/RoomRepositoriesTest.kt`
+- Modify: `app/src/main/java/com/example/data/seed/PrototypeSeedData.kt`
+- Modify: `app/src/main/java/com/example/viewmodel/ViewModelFactories.kt`
+- Delete: `app/src/main/java/com/example/data/MockData.kt` if not already removed
+- Extend: `app/src/test/java/com/example/data/repository/RoomRepositoriesTest.kt`
 
 **Interfaces:**
-- Consumes: `AppContainer`, repository flows and deterministic prototype seed.
-- Produces: one app startup path in which mock content is inserted once into Room and every operational screen observes repository-backed state.
+- Consumes: `FirstClassExpressApplication.container` and repository flows.
+- Produces: one startup path where prototype content is seeded once and operational screens observe Room-backed repositories.
 
-- [ ] **Step 1: Add a failing seed-idempotency test**
+- [ ] **Step 1: Add seed-idempotency test**
 
-Run prototype seeding twice against an empty database and assert that jobs, driver and seed vehicles exist once only with stable IDs.
+Test sequence:
 
-- [ ] **Step 2: Run test and verify failure**
+1. call `seedIfEmpty()`;
+2. transition one seeded job to the next valid status;
+3. call `seedIfEmpty()` again;
+4. assert job count is unchanged and the transitioned status remains changed.
+
+- [ ] **Step 2: Run the seed test and confirm failure**
 
 ```bash
 gradle :app:testDebugUnitTest --tests "com.example.data.repository.RoomRepositoriesTest"
 ```
 
-- [ ] **Step 3: Initialize `AppContainer` once at app startup**
+- [ ] **Step 3: Wire `MainActivity` to the application container**
 
-Keep manual dependency construction. `MainActivity` or a small `Application` subclass owns the container; Compose receives repositories/ViewModel factories rather than constructing database objects in composables.
+Obtain:
 
-- [ ] **Step 4: Make seeding idempotent**
-
-`PrototypeSeedData.seedIfEmpty()` checks table counts before insertion. It never overwrites driver-entered changes or statuses on later launches.
-
-- [ ] **Step 5: Reduce `AppViewModel` to session/aggregate presentation state**
-
-It may still contain the temporary prototype login until production authentication is built, but it must no longer be the source of truth for shift status, job status, inspection answers or evidence completion.
-
-- [ ] **Step 6: Search for prohibited direct state paths**
-
-Run:
-
-```bash
-git grep -n "MockData" -- app/src/main/java
-git grep -n "updateJobStatus" -- app/src/main/java
-git grep -n "startShift(" -- app/src/main/java
-git grep -n "mutableStateOf<String?>(\"PASS\")" -- app/src/main/java
+```kotlin
+val container = (application as FirstClassExpressApplication).container
 ```
 
-Expected:
+Build feature ViewModels through `ViewModelFactories.kt`; composables do not construct databases or repositories.
 
-- `MockData` appears only in the seed adapter or is replaced completely by `PrototypeSeedData`;
-- unrestricted `updateJobStatus` is absent;
-- the old shift activation method is absent;
-- inspection items never default to `PASS`.
+- [ ] **Step 4: Keep temporary prototype login but remove direct mock imports**
 
-- [ ] **Step 7: Run tests and commit**
+`AppViewModel.login` may continue accepting any nonblank prototype credentials in Phase 1, but on success it loads the seeded driver through `DriverRepository` and observes job/shift repositories. It cannot import `MockData` or directly mutate operational status.
+
+- [ ] **Step 5: Search for unsafe legacy paths**
+
+```bash
+git grep -n "MockData" -- app/src/main/java || true
+git grep -n "updateJobStatus" -- app/src/main/java || true
+git grep -n "fun startShift" -- app/src/main/java || true
+git grep -n 'mutableStateOf<String?>("PASS")' -- app/src/main/java || true
+git grep -n "hasPhoto = true\|hasSignature = true" -- app/src/main/java || true
+```
+
+Expected: no unsafe legacy matches.
+
+- [ ] **Step 6: Run the complete unit suite and commit**
 
 ```bash
 gradle :app:testDebugUnitTest
-git add app/src/main/java/com/example app/src/test/java/com/example
+git add -A
 git commit -m "refactor: make Room the operational source of truth"
 ```
 
 ---
 
-### Task 9: Full Verification and Phase 1 Acceptance Gate
+### Task 9: Final Phase 1 Verification
 
 **Files:**
-- Modify only files needed to fix verification failures directly caused by Tasks 1-8.
-- Update: `README.md` with the actual Phase 1 architecture and run instructions if README still describes Gemini API requirements that no longer exist.
+- Modify only files necessary to fix verification failures caused by Tasks 1-8.
+- Modify: `README.md` if it still instructs users to configure Gemini/AI secrets that the app no longer uses.
 
 **Interfaces:**
-- Consumes: all Phase 1 work.
 - Produces: a verified `main` branch meeting the approved design acceptance criteria.
 
 - [ ] **Step 1: Run all unit tests**
@@ -966,13 +1185,13 @@ gradle :app:testDebugUnitTest
 
 Expected: PASS.
 
-- [ ] **Step 2: Compile debug APK**
+- [ ] **Step 2: Compile the debug APK**
 
 ```bash
 gradle :app:assembleDebug
 ```
 
-Expected: `BUILD SUCCESSFUL`; no repository-local `debug.keystore` is required.
+Expected: `BUILD SUCCESSFUL` without a repository-local `debug.keystore`.
 
 - [ ] **Step 3: Compile instrumentation tests**
 
@@ -980,9 +1199,9 @@ Expected: `BUILD SUCCESSFUL`; no repository-local `debug.keystore` is required.
 gradle :app:assembleDebugAndroidTest
 ```
 
-Expected: instrumentation test APK compiles against the real application ID and current source tree.
+Expected: test APK compiles against `com.aistudio.firstclassexpress.abcde`.
 
-- [ ] **Step 4: Verify safety invariants by targeted tests**
+- [ ] **Step 4: Run targeted safety-rule tests**
 
 ```bash
 gradle :app:testDebugUnitTest \
@@ -991,24 +1210,25 @@ gradle :app:testDebugUnitTest \
   --tests "com.example.domain.rules.ShiftRulesTest" \
   --tests "com.example.domain.rules.EvidenceRulesTest" \
   --tests "com.example.viewmodel.ShiftViewModelTest" \
-  --tests "com.example.viewmodel.JobViewModelTest"
+  --tests "com.example.viewmodel.JobViewModelTest" \
+  --tests "com.example.viewmodel.EvidenceViewModelTest"
 ```
 
 Expected: PASS.
 
-- [ ] **Step 5: Verify acceptance criteria with source searches**
+- [ ] **Step 5: Verify unsafe/generated patterns are gone**
 
 ```bash
 git grep -n "debugConfig" -- app/build.gradle.kts || true
 git grep -n "firebase.ai\|firebase-ai\|GEMINI_API_KEY" -- . ':!docs' || true
-git grep -n "mutableStateOf<String?>(\"PASS\")" -- app/src/main/java || true
+git grep -n 'mutableStateOf<String?>("PASS")' -- app/src/main/java || true
 git grep -n "JobStatus.UNASSIGNED, JobStatus.ASSIGNED" -- app/src/main/java || true
 git grep -n "hasPhoto = true\|hasSignature = true" -- app/src/main/java || true
 ```
 
 Expected: no matches for the old unsafe/generated patterns.
 
-- [ ] **Step 6: Review current diff and commit only verification/documentation fixes**
+- [ ] **Step 6: Check diff quality**
 
 ```bash
 git status
@@ -1016,37 +1236,37 @@ git diff --check
 git diff
 ```
 
-Fix whitespace or verification-only defects, rerun the affected tests, then:
+Fix only defects directly related to Phase 1, rerun affected tests, and commit any verification corrections with:
 
 ```bash
-git add README.md app
-git commit -m "docs: document hardened driver app foundation"
+git add -A
+git commit -m "fix: close phase 1 verification gaps"
 ```
 
-Skip the commit when verification produces no file changes.
+Skip this commit when verification needs no changes.
 
-- [ ] **Step 7: Final repository state check**
+- [ ] **Step 7: Confirm clean repository state**
 
 ```bash
 git status --short
-git log --oneline -10
+git log --oneline -12
 ```
 
-Expected: clean working tree and a sequence of small Phase 1 commits on `main`.
+Expected: clean working tree and small Phase 1 commits on `main`.
 
 ---
 
-## Phase 1 Completion Checklist
+## Phase 1 Acceptance Checklist
 
-- [ ] Debug builds no longer depend on a checked-in `debug.keystore`.
+- [ ] Debug builds do not depend on a checked-in `debug.keystore`.
 - [ ] Generated template tests no longer reference nonexistent or unrelated app code.
-- [ ] The driver cannot become `ON_DUTY` before a valid pre-start inspection.
-- [ ] Mandatory inspection items begin `UNANSWERED` and must receive an explicit response.
-- [ ] Defects require description and severity; `CRITICAL` blocks shift activation.
+- [ ] The driver cannot become `ON_DUTY` before a valid pre-start inspection and explicit final Start Shift action.
+- [ ] Mandatory inspection items begin `UNANSWERED` and require an explicit `PASS`, `DEFECT` or `N/A` response.
+- [ ] Defects require description and severity; `CRITICAL` blocks shift readiness/activation.
 - [ ] `UNASSIGNED` jobs cannot start and invalid status skips are rejected by domain/repository logic.
 - [ ] Camera/signature navigation cannot falsely satisfy evidence requirements.
-- [ ] Shift, inspection, job, evidence and sync data persist in Room.
-- [ ] State-changing repository transactions enqueue durable sync operations without falsely marking them remotely synced.
-- [ ] Mock transport content is seed-only and does not overwrite later local state.
-- [ ] The current UI remains recognizable and navigable.
-- [ ] Unit tests and debug/instrumentation compilation succeed.
+- [ ] Shift, inspection, job, evidence and sync state persist in Room.
+- [ ] Every syncable local mutation queues durable pending work without falsely marking it remotely synced.
+- [ ] Prototype seed data runs only on empty tables and does not overwrite later local state.
+- [ ] The existing UI remains recognizable and navigable.
+- [ ] Unit tests, debug APK compilation and instrumentation-test compilation succeed.
