@@ -15,6 +15,10 @@ interface LocationPointDao {
     @Query("SELECT * FROM location_points WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): LocationPointEntity?
 
+    /** Set only after the TMS has acknowledged the point. */
+    @Query("UPDATE location_points SET syncStatus = :status WHERE id = :id")
+    suspend fun updateSyncStatus(id: String, status: String): Int
+
     @Query("SELECT * FROM location_points ORDER BY recordedAt DESC LIMIT 1")
     fun observeLatest(): Flow<LocationPointEntity?>
 

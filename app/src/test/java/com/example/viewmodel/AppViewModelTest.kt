@@ -21,7 +21,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import com.example.domain.sync.SyncQueueCounts
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -224,6 +226,10 @@ class AppViewModelTest {
         )
 
         override fun observePending(): Flow<List<SyncOperation>> = flow
+
+        override fun observeCounts(): Flow<SyncQueueCounts> =
+            flow.map { SyncQueueCounts(pending = it.size) }
+
         override suspend fun enqueue(
             entityType: String,
             entityId: String,

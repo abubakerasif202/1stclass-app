@@ -55,6 +55,10 @@ interface EvidenceDao {
         locationRecordedAt: Long?
     ): Int
 
+    /** Set only after the TMS has acknowledged the upload — never optimistically. */
+    @Query("UPDATE evidence SET status = :status WHERE id = :id")
+    suspend fun updateSyncStatus(id: String, status: String): Int
+
     @Query("DELETE FROM evidence WHERE id = :id AND status = 'PENDING_CAPTURE'")
     suspend fun deletePending(id: String): Int
 

@@ -21,6 +21,10 @@ interface FreightExceptionDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(entity: FreightExceptionEntity)
 
+    /** Set only after the TMS has acknowledged the exception. */
+    @Query("UPDATE freight_exceptions SET status = :status WHERE id = :id")
+    suspend fun updateStatus(id: String, status: String): Int
+
     @Query("UPDATE freight_exceptions SET resolved = :resolved WHERE id = :id")
     suspend fun updateResolved(id: String, resolved: Boolean): Int
 }

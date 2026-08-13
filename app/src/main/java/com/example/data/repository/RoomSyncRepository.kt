@@ -5,6 +5,7 @@ import com.example.data.local.entity.SyncOperationEntity
 import com.example.domain.model.SyncOperation
 import com.example.domain.model.SyncStatus
 import com.example.domain.repository.SyncRepository
+import com.example.domain.sync.SyncQueueCounts
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -16,6 +17,17 @@ class RoomSyncRepository(
 ) : SyncRepository {
     override fun observePending(): Flow<List<SyncOperation>> =
         dao.observePending().map { rows -> rows.map { it.toDomain() } }
+
+    override fun observeCounts(): Flow<SyncQueueCounts> =
+        dao.observeStatusCounts().map { rows ->
+            val byStatus = rows.associate { it.status to it.count }
+            SyncQueueCounts(
+                pending = byStatus[SyncStatus.PENDING.name] ?: 0,
+                inProgress = byStatus[SyncStatus.IN_PROGRESS.name] ?: 0,
+                failed = byStatus[SyncStatus.FAILED.name] ?: 0,
+                synced = byStatus[SyncStatus.SYNCED.name] ?: 0
+            )
+        }
 
     override suspend fun enqueue(
         entityType: String,

@@ -105,4 +105,23 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
     }
 }
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
+/**
+ * Phase 2B2 sync engine. Two additive columns on the existing queue — no table is rebuilt, so
+ * operations already waiting to sync survive the upgrade and keep their idempotency keys.
+ *
+ * `payloadVersion` defaults to 1 so rows written by an older app version are understood by the
+ * new processor. `updatedAt` defaults to 0, which makes any pre-existing row immediately eligible
+ * for stale-lease recovery — correct, because nothing was ever mid-flight before this release.
+ */
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "ALTER TABLE `sync_operations` ADD COLUMN `payloadVersion` INTEGER NOT NULL DEFAULT 1"
+        )
+        db.execSQL(
+            "ALTER TABLE `sync_operations` ADD COLUMN `updatedAt` INTEGER NOT NULL DEFAULT 0"
+        )
+    }
+}
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
