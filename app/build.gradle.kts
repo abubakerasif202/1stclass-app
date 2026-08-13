@@ -12,6 +12,31 @@ val localProperties = Properties().apply {
   if (file.exists()) file.inputStream().use { load(it) }
 }
 
+/**
+ * Resolves a build-time setting from local.properties first, then the environment (CI secrets).
+ * Nothing is defaulted to a real endpoint — an unset value leaves the app in local/offline mode
+ * rather than pointing a build at somebody else's server.
+ */
+fun buildSetting(name: String): String =
+  localProperties.getProperty(name) ?: System.getenv(name) ?: ""
+
+/**
+ * Production traffic must be HTTPS. A misconfigured release that would ship cleartext to a real
+ * TMS fails the build instead of silently downgrading driver evidence to plain HTTP.
+ */
+fun requireHttps(url: String, buildType: String): String {
+  if (url.isNotBlank() && !url.startsWith("https://")) {
+    throw GradleException(
+      "TMS_BASE_URL for the $buildType build must use https:// — refusing to build with '$url'."
+    )
+  }
+  return url
+}
+
+val tmsBaseUrl = buildSetting("TMS_BASE_URL")
+// Debug may point at a local dev server over http; release may not.
+val tmsBaseUrlDebug = buildSetting("TMS_BASE_URL_DEBUG").ifBlank { tmsBaseUrl }
+
 android {
   namespace = "com.example"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
@@ -32,7 +57,8 @@ android {
     buildConfigField("String", "DEV_DRIVER_ID", "\"\"")
     buildConfigField("String", "DEV_DRIVER_PIN", "\"\"")
     buildConfigField("boolean", "SHOW_DEV_CREDENTIALS", "false")
-    // Empty until the 1st Class Express TMS endpoint exists; the app falls back to local auth.
+    // Empty until the 1st Class Express TMS endpoint exists; the app falls back to local auth and
+    // reports remote sync as unavailable rather than pretending queued work reached a server.
     buildConfigField("String", "TMS_BASE_URL", "\"\"")
   }
 
@@ -51,8 +77,10 @@ android {
       buildConfigField("String", "DEV_DRIVER_ID", "\"DRV-8492\"")
       buildConfigField("String", "DEV_DRIVER_PIN", "\"1234\"")
       buildConfigField("boolean", "SHOW_DEV_CREDENTIALS", "true")
+      buildConfigField("String", "TMS_BASE_URL", "\"$tmsBaseUrlDebug\"")
     }
     release {
+      buildConfigField("String", "TMS_BASE_URL", "\"${requireHttps(tmsBaseUrl, "release")}\"")
       isCrunchPngs = false
       isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -120,11 +148,15 @@ dependencies {
   implementation(libs.play.services.maps)
   implementation(libs.maps.compose)
   implementation(libs.retrofit)
+  implementation(libs.androidx.security.crypto)
+  implementation(libs.androidx.work.runtime.ktx)
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)
   testImplementation(libs.androidx.junit)
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)
+  testImplementation(libs.mockwebserver)
+  testImplementation(libs.androidx.work.testing)
   testImplementation(libs.robolectric)
   testImplementation(libs.roborazzi)
   testImplementation(libs.roborazzi.compose)

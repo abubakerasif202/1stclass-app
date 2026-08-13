@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Production network policy.
+
+  Cleartext is off for every host, with no exceptions. Driver evidence, signatures, customer names
+  and GPS traces only ever leave the device over TLS. Certificate validation is left entirely to
+  the platform trust store — there is no custom trust manager, no disabled hostname verification
+  and no pinning of a certificate the TMS has not published yet.
+
+  The debug source set overrides this file to allow cleartext to local development hosts only.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>
