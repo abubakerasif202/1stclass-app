@@ -7,6 +7,7 @@ import com.example.data.local.dao.EvidenceDao
 import com.example.data.local.dao.FreightExceptionDao
 import com.example.data.local.dao.InspectionDao
 import com.example.data.local.dao.JobDao
+import com.example.data.local.dao.LocationPointDao
 import com.example.data.local.dao.ReferenceDataDao
 import com.example.data.local.dao.ShiftDao
 import com.example.data.local.dao.SyncOperationDao
@@ -17,6 +18,7 @@ import com.example.data.local.entity.FreightExceptionEntity
 import com.example.data.local.entity.InspectionEntity
 import com.example.data.local.entity.InspectionItemEntity
 import com.example.data.local.entity.JobEntity
+import com.example.data.local.entity.LocationPointEntity
 import com.example.data.local.entity.ShiftEntity
 import com.example.data.local.entity.SyncOperationEntity
 import com.example.data.local.entity.VehicleEntity
@@ -32,9 +34,10 @@ import com.example.data.local.entity.VehicleEntity
         InspectionItemEntity::class,
         JobEntity::class,
         EvidenceEntity::class,
-        SyncOperationEntity::class
+        SyncOperationEntity::class,
+        LocationPointEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -46,4 +49,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun jobDao(): JobDao
     abstract fun evidenceDao(): EvidenceDao
     abstract fun syncOperationDao(): SyncOperationDao
+    abstract fun locationPointDao(): LocationPointDao
 }

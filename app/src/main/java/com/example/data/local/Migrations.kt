@@ -71,4 +71,38 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
     }
 }
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2)
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `location_points` (
+                `id` TEXT NOT NULL,
+                `driverId` TEXT NOT NULL,
+                `shiftId` TEXT NOT NULL,
+                `jobId` TEXT,
+                `latitude` REAL NOT NULL,
+                `longitude` REAL NOT NULL,
+                `accuracyMeters` REAL NOT NULL,
+                `speedMetersPerSecond` REAL,
+                `bearingDegrees` REAL,
+                `altitudeMeters` REAL,
+                `recordedAt` INTEGER NOT NULL,
+                `createdAt` INTEGER NOT NULL,
+                `syncStatus` TEXT NOT NULL,
+                PRIMARY KEY(`id`)
+            )
+            """.trimIndent()
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_location_points_driverId` ON `location_points` (`driverId`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_location_points_shiftId` ON `location_points` (`shiftId`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_location_points_jobId` ON `location_points` (`jobId`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_location_points_recordedAt` ON `location_points` (`recordedAt`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_location_points_syncStatus` ON `location_points` (`syncStatus`)")
+        db.execSQL("ALTER TABLE `evidence` ADD COLUMN `latitude` REAL")
+        db.execSQL("ALTER TABLE `evidence` ADD COLUMN `longitude` REAL")
+        db.execSQL("ALTER TABLE `evidence` ADD COLUMN `locationAccuracyMeters` REAL")
+        db.execSQL("ALTER TABLE `evidence` ADD COLUMN `locationRecordedAt` INTEGER")
+    }
+}
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3)

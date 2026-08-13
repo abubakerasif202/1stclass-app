@@ -26,5 +26,9 @@ data class EvidenceEntity(
     val signerName: String? = null,
     val notes: String? = null,
     val fileSizeBytes: Long? = null,
-    val savedAt: Long? = null
+    val savedAt: Long? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val locationAccuracyMeters: Float? = null,
+    val locationRecordedAt: Long? = null
 )

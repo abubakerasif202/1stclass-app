@@ -33,7 +33,11 @@ interface EvidenceDao {
             signerName = :signerName,
             notes = :notes,
             fileSizeBytes = :fileSizeBytes,
-            savedAt = :savedAt
+            savedAt = :savedAt,
+            latitude = :latitude,
+            longitude = :longitude,
+            locationAccuracyMeters = :locationAccuracyMeters,
+            locationRecordedAt = :locationRecordedAt
         WHERE id = :id AND status = 'PENDING_CAPTURE'
         """
     )
@@ -44,7 +48,11 @@ interface EvidenceDao {
         signerName: String?,
         notes: String?,
         fileSizeBytes: Long?,
-        savedAt: Long
+        savedAt: Long,
+        latitude: Double?,
+        longitude: Double?,
+        locationAccuracyMeters: Float?,
+        locationRecordedAt: Long?
     ): Int
 
     @Query("DELETE FROM evidence WHERE id = :id AND status = 'PENDING_CAPTURE'")

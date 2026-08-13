@@ -18,7 +18,8 @@ import kotlinx.coroutines.flow.map
 class RoomEvidenceRepository(
     private val database: AppDatabase,
     private val clock: () -> Long = System::currentTimeMillis,
-    private val idGenerator: () -> String = { UUID.randomUUID().toString() }
+    private val idGenerator: () -> String = { UUID.randomUUID().toString() },
+    private val recentLocationMaxAgeMillis: Long = 5 * 60 * 1000L
 ) : EvidenceRepository {
     private val evidenceDao = database.evidenceDao()
     private val syncDao = database.syncOperationDao()
@@ -65,6 +66,7 @@ class RoomEvidenceRepository(
             require(existing.status == EvidenceStatus.PENDING_CAPTURE.name) {
                 "Evidence is not awaiting capture"
             }
+            val location = database.locationPointDao().latestSince(clock() - recentLocationMaxAgeMillis)
             check(
                 evidenceDao.updateSaved(
                     id = id,
@@ -73,7 +75,11 @@ class RoomEvidenceRepository(
                     signerName = signerName?.trim()?.takeIf { it.isNotEmpty() },
                     notes = notes?.trim()?.takeIf { it.isNotEmpty() },
                     fileSizeBytes = file.sizeBytes,
-                    savedAt = file.savedAt
+                    savedAt = file.savedAt,
+                    latitude = location?.latitude,
+                    longitude = location?.longitude,
+                    locationAccuracyMeters = location?.accuracyMeters,
+                    locationRecordedAt = location?.recordedAt
                 ) == 1
             ) { "Failed to save evidence" }
 
@@ -138,7 +144,11 @@ class RoomEvidenceRepository(
         signerName = signerName,
         notes = notes,
         fileSizeBytes = fileSizeBytes,
-        savedAt = savedAt
+        savedAt = savedAt,
+        latitude = latitude,
+        longitude = longitude,
+        locationAccuracyMeters = locationAccuracyMeters,
+        locationRecordedAt = locationRecordedAt
     )
 
     private companion object {
