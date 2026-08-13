@@ -12,6 +12,9 @@ interface ShiftDao {
     @Query("SELECT * FROM shifts WHERE phase != 'OFF_DUTY' ORDER BY createdAt DESC LIMIT 1")
     fun observeCurrent(): Flow<ShiftEntity?>
 
+    @Query("SELECT * FROM shifts WHERE phase IN ('ON_DUTY', 'ON_BREAK') ORDER BY createdAt DESC LIMIT 1")
+    suspend fun getActive(): ShiftEntity?
+
     @Query("SELECT * FROM shifts WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): ShiftEntity?
 

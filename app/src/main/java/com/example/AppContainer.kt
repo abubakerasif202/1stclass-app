@@ -17,6 +17,7 @@ import com.example.data.repository.RoomEvidenceRepository
 import com.example.data.repository.RoomFreightExceptionRepository
 import com.example.data.repository.RoomInspectionRepository
 import com.example.data.repository.RoomJobRepository
+import com.example.data.repository.RoomLocationRepository
 import com.example.data.repository.RoomShiftRepository
 import com.example.data.repository.RoomSyncRepository
 import com.example.data.seed.PrototypeSeedData
@@ -31,15 +32,23 @@ import com.example.domain.repository.EvidenceRepository
 import com.example.domain.repository.FreightExceptionRepository
 import com.example.domain.repository.InspectionRepository
 import com.example.domain.repository.JobRepository
+import com.example.domain.repository.LocationRepository
 import com.example.domain.repository.SessionRepository
 import com.example.domain.repository.ShiftRepository
 import com.example.domain.repository.SyncRepository
+import com.example.location.LocationTrackingController
+import com.example.location.LocationTrackingStateStore
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class AppContainer(context: Context) {
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     val database: AppDatabase = Room.databaseBuilder(
         context.applicationContext,
         AppDatabase::class.java,
@@ -53,6 +62,15 @@ class AppContainer(context: Context) {
     val inspectionRepository: InspectionRepository = RoomInspectionRepository(database)
     val shiftRepository: ShiftRepository = RoomShiftRepository(database, inspectionRepository)
     val jobRepository: JobRepository = RoomJobRepository(database, codec)
+    val locationRepository: LocationRepository = RoomLocationRepository(database)
+    val locationStateStore = LocationTrackingStateStore()
+    val locationTrackingController = LocationTrackingController(context.applicationContext)
+
+    init {
+        applicationScope.launch {
+            locationRepository.observeLatest().collect(locationStateStore::restoreLastPoint)
+        }
+    }
     val evidenceRepository: EvidenceRepository = RoomEvidenceRepository(database)
     val freightExceptionRepository: FreightExceptionRepository =
         RoomFreightExceptionRepository(database)

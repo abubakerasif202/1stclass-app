@@ -11,7 +11,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -19,6 +23,9 @@ import androidx.navigation.compose.*
 import com.example.AppContainer
 import com.example.BuildConfig
 import com.example.domain.model.ShiftPhase
+import com.example.domain.model.GpsStatus
+import com.example.ui.location.LocationPermissionCoordinator
+import com.example.ui.location.hasLocationPermission
 import com.example.ui.capture.CameraCaptureScreen
 import com.example.ui.capture.SignatureCaptureScreen
 import com.example.ui.screens.*
@@ -59,6 +66,29 @@ fun AppNavigation(
 
     val driverId = uiState.driver?.id.orEmpty()
     val shiftId = uiState.currentShiftId
+    val onDuty = uiState.currentShift?.phase == ShiftPhase.ON_DUTY ||
+        uiState.currentShift?.phase == ShiftPhase.ON_BREAK
+    val locationState by container.locationStateStore.state.collectAsState()
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    fun reconcileTracking() {
+        container.locationTrackingController.reconcile(onDuty, uiState.isLoggedIn)
+        if (!onDuty || !uiState.isLoggedIn) {
+            container.locationStateStore.updateStatus(GpsStatus.OFF, false)
+        } else if (!context.hasLocationPermission()) {
+            container.locationStateStore.updateStatus(GpsStatus.PERMISSION_REQUIRED, true)
+        }
+    }
+    LaunchedEffect(onDuty, uiState.isLoggedIn) { reconcileTracking() }
+    DisposableEffect(lifecycleOwner, onDuty, uiState.isLoggedIn) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) reconcileTracking()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    LocationPermissionCoordinator(onDuty = onDuty, onPermissionChanged = ::reconcileTracking)
 
     // Sign-out anywhere in the app returns to the login screen.
     LaunchedEffect(uiState.isLoggedIn, uiState.isRestoringSession) {
@@ -131,6 +161,7 @@ fun AppNavigation(
                 val shiftState by shiftViewModel.uiState.collectAsState()
                 HomeScreen(
                     viewModel = viewModel,
+                    locationState = locationState,
                     onNavigateToShiftStart = {
                         val current = shiftState.currentShift
                         val awaitingPreStart = current != null && current.phase in setOf(
@@ -299,13 +330,14 @@ fun AppNavigation(
                     onSaved = { navController.popBackStack() }
                 )
             }
-            composable(Screen.Map.route) { MapScreen(viewModel) }
+            composable(Screen.Map.route) { MapScreen(viewModel, locationState) }
             composable(Screen.Messages.route) { MessagesScreen(viewModel) }
             composable(Screen.More.route) {
                 MoreScreen(
                     viewModel = viewModel,
                     shiftViewModel = shiftViewModel,
                     appVersion = BuildConfig.VERSION_NAME,
+                    locationState = locationState,
                     onLogout = { viewModel.logout() }
                 )
             }
