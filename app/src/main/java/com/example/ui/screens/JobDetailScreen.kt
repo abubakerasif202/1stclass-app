@@ -34,6 +34,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import com.example.navigation.JobNavigation
 import com.example.domain.model.EvidenceRecord
 import com.example.domain.model.FreightExceptionRecord
 import com.example.model.JobStatus
@@ -61,6 +63,7 @@ fun JobDetailScreen(
     val scope = rememberCoroutineScope()
     LaunchedEffect(jobId) { viewModel.loadJob(jobId) }
     val job = uiState.job
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -179,11 +182,15 @@ fun JobDetailScreen(
             }
             item {
                 SectionHeader("Pickup Details")
-                LocationCard(job.pickup, job.pickupWindowStart, job.pickupWindowEnd)
+                LocationCard(job.pickup, job.pickupWindowStart, job.pickupWindowEnd, "NAVIGATE TO PICKUP") {
+                    JobNavigation.launch(context, job.pickup)
+                }
             }
             item {
                 SectionHeader("Delivery Details")
-                LocationCard(job.delivery, job.deliveryWindowStart, job.deliveryWindowEnd)
+                LocationCard(job.delivery, job.deliveryWindowStart, job.deliveryWindowEnd, "NAVIGATE TO DELIVERY") {
+                    JobNavigation.launch(context, job.delivery)
+                }
             }
             item {
                 SectionHeader("Evidence & POD")
@@ -232,7 +239,7 @@ fun JobDetailScreen(
 }
 
 @Composable
-fun LocationCard(location: Location, windowStart: String, windowEnd: String) {
+fun LocationCard(location: Location, windowStart: String, windowEnd: String, navigationLabel: String, onNavigate: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -268,6 +275,8 @@ fun LocationCard(location: Location, windowStart: String, windowEnd: String) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text("Notes: ${location.notes}", style = MaterialTheme.typography.bodySmall)
             }
+            Spacer(modifier = Modifier.height(12.dp))
+            PrimaryButton(text = navigationLabel, onClick = onNavigate)
         }
     }
 }
