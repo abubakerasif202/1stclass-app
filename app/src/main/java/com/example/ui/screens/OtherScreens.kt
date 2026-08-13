@@ -68,7 +68,11 @@ fun MapScreen(viewModel: AppViewModel, locationState: LocationTrackingState) {
         ) {
             GoogleMap(modifier = Modifier.fillMaxSize(), cameraPositionState = cameraState) {
                 point?.let {
-                    Marker(state = MarkerState(LatLng(it.latitude, it.longitude)), title = "Driver")
+                    Marker(
+                        state = MarkerState(LatLng(it.latitude, it.longitude)),
+                        title = "Driver",
+                        icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)
+                    )
                 }
                 appState.jobs.forEach { job ->
                     job.pickup.takeIf { it.hasValidCoordinates() }?.let {
