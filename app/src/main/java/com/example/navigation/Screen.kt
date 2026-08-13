@@ -14,6 +14,9 @@ sealed class Screen(val route: String) {
     object Messages : Screen("messages")
     object More : Screen("more")
 
+    /** Sync diagnostics, reached from the dashboard indicator and from Profile. */
+    object SyncDetails : Screen("sync_details")
+
     object JobDetail : Screen("job_detail/{jobId}") {
         fun createRoute(jobId: String) = "job_detail/$jobId"
     }

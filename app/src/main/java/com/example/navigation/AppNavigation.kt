@@ -63,6 +63,18 @@ fun AppNavigation(
             EvidenceViewModel(container.evidenceCaptureService, container.evidenceRepository)
         }
     )
+    val syncViewModel: SyncViewModel = viewModel(
+        factory = viewModelFactory {
+            SyncViewModel(
+                syncRepository = container.syncRepository,
+                syncQueue = container.syncQueue,
+                connectivityRepository = container.connectivityRepository,
+                environment = container.tmsEnvironment,
+                requestSync = container.syncScheduler::requestImmediateSync,
+                isOnlineNow = container.connectivityRepository::isOnline
+            )
+        }
+    )
 
     val driverId = uiState.driver?.id.orEmpty()
     val shiftId = uiState.currentShiftId
@@ -159,9 +171,14 @@ fun AppNavigation(
             }
             composable(Screen.Home.route) {
                 val shiftState by shiftViewModel.uiState.collectAsState()
+                val syncState by syncViewModel.uiState.collectAsState()
                 HomeScreen(
                     viewModel = viewModel,
                     locationState = locationState,
+                    syncSummary = syncState.summary,
+                    onNavigateToSyncDetails = {
+                        navController.navigate(Screen.SyncDetails.route)
+                    },
                     onNavigateToShiftStart = {
                         val current = shiftState.currentShift
                         val awaitingPreStart = current != null && current.phase in setOf(
@@ -336,9 +353,19 @@ fun AppNavigation(
                 MoreScreen(
                     viewModel = viewModel,
                     shiftViewModel = shiftViewModel,
+                    syncViewModel = syncViewModel,
                     appVersion = BuildConfig.VERSION_NAME,
                     locationState = locationState,
+                    onNavigateToSyncDetails = {
+                        navController.navigate(Screen.SyncDetails.route)
+                    },
                     onLogout = { viewModel.logout() }
+                )
+            }
+            composable(Screen.SyncDetails.route) {
+                SyncDetailsScreen(
+                    viewModel = syncViewModel,
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
         }

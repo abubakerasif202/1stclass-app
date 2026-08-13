@@ -21,9 +21,11 @@ import com.example.domain.model.GpsStatus
 import com.example.domain.model.LocationTrackingState
 import com.example.model.JobStatus
 import com.example.model.ShiftStatus
+import com.example.domain.sync.SyncStatusSummary
 import com.example.ui.components.OutlinedActionButton
 import com.example.ui.components.PrimaryButton
 import com.example.ui.components.SectionHeader
+import com.example.ui.components.SyncStatusRow
 import com.example.viewmodel.AppViewModel
 import kotlin.math.max
 
@@ -32,6 +34,8 @@ import kotlin.math.max
 fun HomeScreen(
     viewModel: AppViewModel,
     locationState: LocationTrackingState,
+    syncSummary: SyncStatusSummary,
+    onNavigateToSyncDetails: () -> Unit,
     onNavigateToShiftStart: () -> Unit,
     onNavigateToJobs: () -> Unit,
     onNavigateToJobDetail: (String) -> Unit
@@ -66,6 +70,9 @@ fun HomeScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            item {
+                SyncStatusRow(summary = syncSummary, onClick = onNavigateToSyncDetails)
+            }
             item {
                 // Driver Info Card
                 Card(

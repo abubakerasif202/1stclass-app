@@ -38,10 +38,12 @@ import com.example.domain.model.ShiftPhase
 import com.example.domain.model.GpsStatus
 import com.example.domain.model.LocationTrackingState
 import com.example.model.ShiftStatus
+import com.example.ui.components.OutlinedActionButton
 import com.example.ui.components.PrimaryButton
 import com.example.ui.components.SectionHeader
 import com.example.viewmodel.AppViewModel
 import com.example.viewmodel.ShiftViewModel
+import com.example.viewmodel.SyncViewModel
 import kotlinx.coroutines.launch
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
@@ -130,12 +132,15 @@ fun MessagesScreen(viewModel: AppViewModel) {
 fun MoreScreen(
     viewModel: AppViewModel,
     shiftViewModel: ShiftViewModel,
+    syncViewModel: SyncViewModel,
     appVersion: String,
     locationState: LocationTrackingState,
+    onNavigateToSyncDetails: () -> Unit,
     onLogout: () -> Unit
 ) {
     val appState by viewModel.uiState.collectAsState()
     val shiftState by shiftViewModel.uiState.collectAsState()
+    val syncState by syncViewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
     val driver = appState.driver
     // Only a running shift can be ended; null covers both "no shift" and "not started yet".
@@ -208,15 +213,22 @@ fun MoreScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     SectionHeader("Sync")
-                    val pending = appState.pendingSyncCount
                     Text(
-                        text = if (pending == 0) {
-                            "All work is saved on this device. Nothing is waiting to sync."
-                        } else {
-                            "$pending change${if (pending == 1) "" else "s"} saved on device and " +
-                                "waiting to sync."
-                        },
+                        text = syncState.summary.driverMessage(),
                         style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    // The button only asks WorkManager for a run — no networking happens here, so
+                    // a drain survives the driver leaving this screen.
+                    PrimaryButton(text = "Sync now", onClick = syncViewModel::syncNow)
+                    syncState.message?.let { message ->
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(text = message, style = MaterialTheme.typography.bodySmall)
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedActionButton(
+                        text = "Sync details",
+                        onClick = onNavigateToSyncDetails
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     ProfileRow("App version", appVersion.ifBlank { NOT_PROVIDED })
