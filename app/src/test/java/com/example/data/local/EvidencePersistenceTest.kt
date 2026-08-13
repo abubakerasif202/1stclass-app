@@ -107,11 +107,11 @@ class EvidencePersistenceTest {
     }
 
     /**
-     * Verifies the 1 → 2 migration statements against a hand-built v1 schema: the new tables and
+     * Verifies the 1 → 3 migration statements against a hand-built v1 schema: the new tables and
      * columns appear, and the rows that were already there are still there afterwards.
      */
     @Test
-    fun migrationOneToTwoIsAdditive() {
+    fun migrationOneToThreeIsAdditive() {
         val file = File(temporaryFolder.newFolder("db-migration"), "legacy.db")
         val helper = FrameworkSQLiteOpenHelperFactory().create(
             SupportSQLiteOpenHelper.Configuration.builder(context)
@@ -135,14 +135,17 @@ class EvidencePersistenceTest {
         database.execSQL("INSERT INTO drivers VALUES ('DRV-8492','James Miller','j@example.com')")
 
         MIGRATION_1_2.migrate(database)
+        MIGRATION_2_3.migrate(database)
 
         assertEquals(1, countOf(database, "SELECT COUNT(*) FROM evidence"))
         assertEquals(0, countOf(database, "SELECT COUNT(*) FROM driver_credentials"))
         assertEquals(0, countOf(database, "SELECT COUNT(*) FROM freight_exceptions"))
+        assertEquals(0, countOf(database, "SELECT COUNT(*) FROM location_points"))
         assertEquals(
             1,
             countOf(database, "SELECT COUNT(*) FROM evidence WHERE savedAt IS NULL")
         )
+        assertEquals(1, countOf(database, "SELECT COUNT(*) FROM evidence WHERE latitude IS NULL"))
         assertEquals(
             1,
             countOf(database, "SELECT COUNT(*) FROM drivers WHERE phone IS NULL")
