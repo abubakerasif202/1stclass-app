@@ -17,17 +17,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.model.Job
+import com.example.domain.model.GpsStatus
+import com.example.domain.model.LocationTrackingState
 import com.example.model.JobStatus
 import com.example.model.ShiftStatus
 import com.example.ui.components.OutlinedActionButton
 import com.example.ui.components.PrimaryButton
 import com.example.ui.components.SectionHeader
 import com.example.viewmodel.AppViewModel
+import kotlin.math.max
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: AppViewModel,
+    locationState: LocationTrackingState,
     onNavigateToShiftStart: () -> Unit,
     onNavigateToJobs: () -> Unit,
     onNavigateToJobDetail: (String) -> Unit
@@ -133,6 +137,34 @@ fun HomeScreen(
             }
 
             item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                when (locationState.status) {
+                                    GpsStatus.ACTIVE -> "GPS Active"
+                                    GpsStatus.WAITING_FOR_FIX -> "Waiting for GPS"
+                                    GpsStatus.LIMITED -> "GPS Limited"
+                                    GpsStatus.GPS_OFF -> "GPS Off"
+                                    GpsStatus.PERMISSION_REQUIRED -> "Location permission required"
+                                    GpsStatus.OFF -> "GPS Off duty"
+                                }, fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                locationState.lastPoint?.let { "Last GPS update: ${formatAge(it.recordedAt)}" }
+                                    ?: "No GPS fix yet",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                }
+            }
+
+            item {
                 SectionHeader("Today's Progress")
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -224,6 +256,11 @@ fun HomeScreen(
             }
         }
     }
+}
+
+private fun formatAge(recordedAt: Long): String {
+    val seconds = max(0L, (System.currentTimeMillis() - recordedAt) / 1000L)
+    return if (seconds < 60) "$seconds sec ago" else "${seconds / 60} min ago"
 }
 
 @Composable

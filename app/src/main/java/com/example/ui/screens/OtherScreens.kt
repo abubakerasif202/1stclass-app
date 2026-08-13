@@ -21,6 +21,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.Button
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -34,18 +35,30 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.domain.model.ShiftPhase
+import com.example.domain.model.GpsStatus
+import com.example.domain.model.LocationTrackingState
 import com.example.model.ShiftStatus
 import com.example.ui.components.PrimaryButton
 import com.example.ui.components.SectionHeader
 import com.example.viewmodel.AppViewModel
 import com.example.viewmodel.ShiftViewModel
 import kotlinx.coroutines.launch
+import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
+import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.Marker
+import com.google.maps.android.compose.MarkerState
+import com.google.maps.android.compose.rememberCameraPositionState
 
 private const val NOT_PROVIDED = "Not provided"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MapScreen(viewModel: AppViewModel) {
+fun MapScreen(viewModel: AppViewModel, locationState: LocationTrackingState) {
+    val appState by viewModel.uiState.collectAsState()
+    val cameraState = rememberCameraPositionState()
+    val mapScope = rememberCoroutineScope()
+    val point = locationState.lastPoint
     Scaffold(topBar = { TopAppBar(title = { Text("Navigation") }) }) { padding ->
         Box(
             modifier = Modifier
@@ -53,10 +66,39 @@ fun MapScreen(viewModel: AppViewModel) {
                 .padding(padding),
             contentAlignment = Alignment.Center
         ) {
-            Text("Map View (Google Maps SDK placeholder)")
+            GoogleMap(modifier = Modifier.fillMaxSize(), cameraPositionState = cameraState) {
+                point?.let {
+                    Marker(state = MarkerState(LatLng(it.latitude, it.longitude)), title = "Driver")
+                }
+                appState.jobs.forEach { job ->
+                    job.pickup.takeIf { it.hasValidCoordinates() }?.let {
+                        Marker(state = MarkerState(LatLng(it.lat, it.lng)), title = "Pickup: ${job.reference}", snippet = it.address, icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_YELLOW))
+                    }
+                    job.delivery.takeIf { it.hasValidCoordinates() }?.let {
+                        Marker(state = MarkerState(LatLng(it.lat, it.lng)), title = "Delivery: ${job.reference}", snippet = it.address, icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED))
+                    }
+                }
+            }
+            if (point == null) {
+                Card(modifier = Modifier.padding(24.dp)) { Text("No GPS fix yet", modifier = Modifier.padding(16.dp)) }
+            } else {
+                Button(
+                    onClick = {
+                        mapScope.launch {
+                            cameraState.animate(com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(
+                                LatLng(point.latitude, point.longitude), 15f
+                            ))
+                        }
+                    },
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)
+                ) { Text("My Location") }
+            }
         }
     }
 }
+
+private fun com.example.model.Location.hasValidCoordinates(): Boolean =
+    lat in -90.0..90.0 && lng in -180.0..180.0 && !(lat == 0.0 && lng == 0.0)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,6 +127,7 @@ fun MoreScreen(
     viewModel: AppViewModel,
     shiftViewModel: ShiftViewModel,
     appVersion: String,
+    locationState: LocationTrackingState,
     onLogout: () -> Unit
 ) {
     val appState by viewModel.uiState.collectAsState()
@@ -136,6 +179,21 @@ fun MoreScreen(
                             ShiftStatus.ON_BREAK -> "On break"
                             else -> "Off duty"
                         }
+                    )
+                }
+            }
+
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    SectionHeader("LOCATION TRACKING")
+                    ProfileRow("Status", when (locationState.status) {
+                        GpsStatus.ACTIVE, GpsStatus.WAITING_FOR_FIX, GpsStatus.LIMITED -> "Active"
+                        GpsStatus.OFF -> "Off"
+                        else -> "Unavailable"
+                    })
+                    Text(
+                        "Location is recorded while you are on shift to support dispatch and job operations.",
+                        style = MaterialTheme.typography.bodyMedium
                     )
                 }
             }
