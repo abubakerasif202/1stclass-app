@@ -1,0 +1,311 @@
+:root {
+  --bg-main: #0c0e12;
+  --bg-surface: #14171d;
+  --bg-card: #1c2028;
+  --bg-card-hover: #232832;
+  --bg-input: #12141a;
+
+  --border-subtle: #242934;
+  --border-strong: #333a4a;
+  --border-gold: rgba(212, 175, 55, 0.4);
+
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --text-gold: #e5c05b;
+
+  --gold-primary: #d4af37;
+  --gold-hover: #c5a028;
+  --gold-dark: #8c7322;
+
+  --status-green: #10b981;
+  --status-green-bg: rgba(16, 185, 129, 0.12);
+  --status-amber: #f59e0b;
+  --status-amber-bg: rgba(245, 158, 11, 0.12);
+  --status-red: #ef4444;
+  --status-red-bg: rgba(239, 68, 68, 0.12);
+  --status-blue: #3b82f6;
+  --status-blue-bg: rgba(59, 130, 246, 0.12);
+
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-main);
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-main);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Layout Utilities */
+.app-container {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.page-body {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+/* Card & Containers */
+.ops-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 20px;
+  transition: border-color 0.2s;
+}
+
+.ops-card:hover {
+  border-color: var(--border-strong);
+}
+
+/* Buttons */
+.btn-primary {
+  background: var(--gold-primary);
+  color: #0c0e12;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  transition: background 0.15s;
+}
+
+.btn-primary:hover {
+  background: var(--gold-hover);
+}
+
+.btn-secondary {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  transition: all 0.15s;
+}
+
+.btn-secondary:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-strong);
+}
+
+.btn-danger {
+  background: var(--status-red-bg);
+  color: var(--status-red);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  transition: background 0.15s;
+}
+
+.btn-danger:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+/* Form Inputs */
+.input-field {
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-primary);
+  padding: 10px 14px;
+  font-size: 14px;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.input-field:focus {
+  border-color: var(--gold-primary);
+}
+
+/* Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.badge-green {
+  background: var(--status-green-bg);
+  color: var(--status-green);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.badge-amber {
+  background: var(--status-amber-bg);
+  color: var(--status-amber);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.badge-red {
+  background: var(--status-red-bg);
+  color: var(--status-red);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.badge-blue {
+  background: var(--status-blue-bg);
+  color: var(--status-blue);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+}
+
+.badge-gold {
+  background: rgba(212, 175, 55, 0.12);
+  color: var(--text-gold);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+}
+
+.badge-neutral {
+  background: rgba(148, 163, 184, 0.1);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+}
+
+/* Tables */
+.ops-table-container {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.ops-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.ops-table th {
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.ops-table td {
+  padding: 14px 16px;
+  font-size: 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+}
+
+.ops-table tr:last-child td {
+  border-bottom: none;
+}
+
+.ops-table tr:hover td {
+  background: var(--bg-card-hover);
+}
+
+/* Modal Overlay */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.modal-content {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 680px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+}
+
+.modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  background: var(--bg-main);
+}

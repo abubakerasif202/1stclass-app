@@ -34,21 +34,47 @@ fun requireHttps(url: String, buildType: String): String {
 }
 
 val tmsBaseUrl = buildSetting("TMS_BASE_URL")
-// Debug may point at a local dev server over http; release may not.
+// Debug may point at a local dev server over http; release and staging use secure or configured endpoints.
 val tmsBaseUrlDebug = buildSetting("TMS_BASE_URL_DEBUG").ifBlank { tmsBaseUrl }
+val tmsBaseUrlStaging = buildSetting("TMS_BASE_URL_STAGING").ifBlank { "https://staging-api.1stclassexpress.com.au" }
+val firebaseMessagingEnabled = buildSetting("FIREBASE_MESSAGING_ENABLED")
+  .ifBlank { "true" }
+  .toBooleanStrictOrNull() ?: true
+
+val releaseSigningValues = mapOf(
+  "KEYSTORE_PATH" to buildSetting("KEYSTORE_PATH"),
+  "KEYSTORE_PASSWORD" to buildSetting("KEYSTORE_PASSWORD"),
+  "KEY_ALIAS" to buildSetting("KEY_ALIAS"),
+  "KEY_PASSWORD" to buildSetting("KEY_PASSWORD")
+)
+
+fun requireReleaseSigning(): Map<String, String> {
+  val missing = releaseSigningValues.filterValues { it.isBlank() }.keys
+  if (missing.isNotEmpty()) {
+    throw GradleException(
+      "Release signing is not configured. Set: ${missing.sorted().joinToString(", ")}."
+    )
+  }
+  val keyFile = file(releaseSigningValues.getValue("KEYSTORE_PATH"))
+  if (!keyFile.isFile) {
+    throw GradleException("KEYSTORE_PATH does not reference a readable file: $keyFile")
+  }
+  return releaseSigningValues
+}
 
 android {
-  namespace = "com.example"
+  namespace = "au.com.firstclassexpress.driver"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
-    applicationId = "com.aistudio.firstclassexpress.abcde"
+    applicationId = "au.com.firstclassexpress.driver"
     minSdk = 24
     targetSdk = 36
     versionCode = 1
-    versionName = "1.0"
+    versionName = "1.0.0"
     manifestPlaceholders["MAPS_API_KEY"] =
       localProperties.getProperty("MAPS_API_KEY") ?: System.getenv("MAPS_API_KEY") ?: ""
+    manifestPlaceholders["FCM_ENABLED"] = firebaseMessagingEnabled
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -57,18 +83,21 @@ android {
     buildConfigField("String", "DEV_DRIVER_ID", "\"\"")
     buildConfigField("String", "DEV_DRIVER_PIN", "\"\"")
     buildConfigField("boolean", "SHOW_DEV_CREDENTIALS", "false")
+    buildConfigField("boolean", "FCM_ENABLED", firebaseMessagingEnabled.toString())
     // Empty until the 1st Class Express TMS endpoint exists; the app falls back to local auth and
     // reports remote sync as unavailable rather than pretending queued work reached a server.
     buildConfigField("String", "TMS_BASE_URL", "\"\"")
+    buildConfigField("String", "ENVIRONMENT_NAME", "\"production\"")
   }
 
   signingConfigs {
     create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      storeFile = file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")
+      if (releaseSigningValues.values.all { it.isNotBlank() }) {
+        storeFile = file(releaseSigningValues.getValue("KEYSTORE_PATH"))
+        storePassword = releaseSigningValues.getValue("KEYSTORE_PASSWORD")
+        keyAlias = releaseSigningValues.getValue("KEY_ALIAS")
+        keyPassword = releaseSigningValues.getValue("KEY_PASSWORD")
+      }
     }
   }
 
@@ -78,13 +107,27 @@ android {
       buildConfigField("String", "DEV_DRIVER_PIN", "\"1234\"")
       buildConfigField("boolean", "SHOW_DEV_CREDENTIALS", "true")
       buildConfigField("String", "TMS_BASE_URL", "\"$tmsBaseUrlDebug\"")
+      buildConfigField("String", "ENVIRONMENT_NAME", "\"development\"")
+    }
+    create("staging") {
+      initWith(getByName("debug"))
+      applicationIdSuffix = ".staging"
+      matchingFallbacks += listOf("debug")
+      buildConfigField("String", "DEV_DRIVER_ID", "\"DRV-8492\"")
+      buildConfigField("String", "DEV_DRIVER_PIN", "\"1234\"")
+      buildConfigField("boolean", "SHOW_DEV_CREDENTIALS", "true")
+      buildConfigField("String", "TMS_BASE_URL", "\"$tmsBaseUrlStaging\"")
+      buildConfigField("String", "ENVIRONMENT_NAME", "\"staging\"")
     }
     release {
       buildConfigField("String", "TMS_BASE_URL", "\"${requireHttps(tmsBaseUrl, "release")}\"")
+      buildConfigField("String", "ENVIRONMENT_NAME", "\"production\"")
       isCrunchPngs = false
       isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      signingConfig = signingConfigs.getByName("release")
+      if (releaseSigningValues.values.all { it.isNotBlank() }) {
+        signingConfig = signingConfigs.getByName("release")
+      }
     }
   }
   compileOptions {
@@ -99,6 +142,12 @@ android {
   dependenciesInfo {
     includeInApk = false
     includeInBundle = true
+  }
+}
+
+tasks.configureEach {
+  if (name == "packageRelease" || name == "bundleRelease" || name == "assembleRelease") {
+    doFirst { requireReleaseSigning() }
   }
 }
 
@@ -130,8 +179,9 @@ dependencies {
   implementation(libs.androidx.room.runtime)
   implementation(libs.coil.compose)
   implementation(libs.converter.moshi)
-  // Uncomment to use Firestore:
-  // implementation(libs.firebase.firestore)
+  implementation(platform(libs.firebase.bom))
+  implementation(libs.firebase.messaging)
+  // Firebase Messaging is safe without google-services.json: runtime initialization is gated.
 
   // Uncomment ALL FOUR of the following dependencies together to use Firebase Auth and Google
   // Sign-In via Credential Manager:

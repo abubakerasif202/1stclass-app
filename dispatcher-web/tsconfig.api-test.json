@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "skipLibCheck": true,
+    "outDir": ".test-dist",
+    "rootDir": "src"
+  },
+  "include": ["src/api.ts", "src/editJob.ts", "src/types.ts"]
+}

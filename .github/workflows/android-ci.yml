@@ -34,13 +34,13 @@ jobs:
       - name: Run targeted safety tests
         run: |
           gradle :app:testDebugUnitTest \
-            --tests "com.example.domain.rules.JobTransitionRulesTest" \
-            --tests "com.example.domain.rules.InspectionRulesTest" \
-            --tests "com.example.domain.rules.ShiftRulesTest" \
-            --tests "com.example.domain.rules.EvidenceRulesTest" \
-            --tests "com.example.viewmodel.ShiftViewModelTest" \
-            --tests "com.example.viewmodel.JobViewModelTest" \
-            --tests "com.example.viewmodel.EvidenceViewModelTest" \
+            --tests "au.com.firstclassexpress.driver.domain.rules.JobTransitionRulesTest" \
+            --tests "au.com.firstclassexpress.driver.domain.rules.InspectionRulesTest" \
+            --tests "au.com.firstclassexpress.driver.domain.rules.ShiftRulesTest" \
+            --tests "au.com.firstclassexpress.driver.domain.rules.EvidenceRulesTest" \
+            --tests "au.com.firstclassexpress.driver.viewmodel.ShiftViewModelTest" \
+            --tests "au.com.firstclassexpress.driver.viewmodel.JobViewModelTest" \
+            --tests "au.com.firstclassexpress.driver.viewmodel.EvidenceViewModelTest" \
             --stacktrace
 
       - name: Verify unsafe generated patterns are gone

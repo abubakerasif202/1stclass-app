@@ -16,3 +16,24 @@
 local.properties
 .env
 debug.keystore
+*.jks
+*.keystore
+pilot-artifacts/
+.test-dist/
+
+# Node dependencies and generated web/backend output
+**/node_modules/
+backend/dist/
+dispatcher-web/dist/
+
+# Local backend runtime data
+backend/data/
+backend/uploads/
+uploads/
+*.sqlite
+*.sqlite3
+*.db
+
+# Local agent worktrees and transient logs
+.claude/worktrees/
+*.log

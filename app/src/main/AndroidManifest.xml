@@ -10,6 +10,7 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- Evidence capture degrades to an explanatory screen on hardware without a camera. -->
     <uses-feature
@@ -26,12 +27,22 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.MyApplication">
         <meta-data
+            android:name="firebase_messaging_auto_init_enabled"
+            android:value="${FCM_ENABLED}" />
+        <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="${MAPS_API_KEY}" />
         <service
             android:name=".location.LocationTrackingService"
             android:exported="false"
             android:foregroundServiceType="location" />
+        <service
+            android:name=".push.FirstClassExpressMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
         <activity
             android:name=".MainActivity"
             android:exported="true"
