@@ -1,3 +1,4 @@
+import java.io.File
 import java.util.Properties
 
 plugins {
@@ -47,20 +48,6 @@ val releaseSigningValues = mapOf(
   "KEY_ALIAS" to buildSetting("KEY_ALIAS"),
   "KEY_PASSWORD" to buildSetting("KEY_PASSWORD")
 )
-
-fun requireReleaseSigning(): Map<String, String> {
-  val missing = releaseSigningValues.filterValues { it.isBlank() }.keys
-  if (missing.isNotEmpty()) {
-    throw GradleException(
-      "Release signing is not configured. Set: ${missing.sorted().joinToString(", ")}."
-    )
-  }
-  val keyFile = file(releaseSigningValues.getValue("KEYSTORE_PATH"))
-  if (!keyFile.isFile) {
-    throw GradleException("KEYSTORE_PATH does not reference a readable file: $keyFile")
-  }
-  return releaseSigningValues
-}
 
 android {
   namespace = "au.com.firstclassexpress.driver"
@@ -145,9 +132,24 @@ android {
   }
 }
 
+// A release build must fail before packaging if signing is not configured, rather than emitting an
+// unsigned artifact. The checks below are resolved at configuration time into plain values: a task
+// action that calls a build-script function or `file()` captures a Gradle script object reference,
+// which the configuration cache cannot serialize — that previously made every release task fail.
 tasks.configureEach {
   if (name == "packageRelease" || name == "bundleRelease" || name == "assembleRelease") {
-    doFirst { requireReleaseSigning() }
+    val missingSigningValues = releaseSigningValues.filterValues { it.isBlank() }.keys.sorted()
+    val keystorePath = releaseSigningValues.getValue("KEYSTORE_PATH")
+    doFirst {
+      if (missingSigningValues.isNotEmpty()) {
+        throw GradleException(
+          "Release signing is not configured. Set: ${missingSigningValues.joinToString(", ")}."
+        )
+      }
+      if (!File(keystorePath).isFile) {
+        throw GradleException("KEYSTORE_PATH does not reference a readable file: $keystorePath")
+      }
+    }
   }
 }
 

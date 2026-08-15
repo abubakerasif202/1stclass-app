@@ -19,6 +19,33 @@ if (-not (Test-Path -LiteralPath $env:KEYSTORE_PATH -PathType Leaf)) {
     throw "KEYSTORE_PATH does not exist: $env:KEYSTORE_PATH"
 }
 
+# apksigner ships inside the Android SDK build-tools and is not placed on PATH by the SDK
+# installer. Resolve it explicitly so the pilot build fails on a missing SDK rather than
+# part-way through, after a full release build has already been produced.
+function Resolve-ApkSigner {
+    $onPath = Get-Command 'apksigner' -ErrorAction SilentlyContinue
+    if ($onPath) { return $onPath.Source }
+
+    $roots = @($env:ANDROID_HOME, $env:ANDROID_SDK_ROOT, (Join-Path $env:LOCALAPPDATA 'Android\Sdk')) |
+        Where-Object { $_ -and (Test-Path -LiteralPath $_) }
+
+    foreach ($root in $roots) {
+        $buildTools = Join-Path $root 'build-tools'
+        if (-not (Test-Path -LiteralPath $buildTools)) { continue }
+        # Highest build-tools version wins.
+        $candidate = Get-ChildItem -LiteralPath $buildTools -Directory -ErrorAction SilentlyContinue |
+            Sort-Object { [version]($_.Name -replace '[^0-9.].*$', '') } -Descending |
+            ForEach-Object { Join-Path $_.FullName 'apksigner.bat' } |
+            Where-Object { Test-Path -LiteralPath $_ } |
+            Select-Object -First 1
+        if ($candidate) { return $candidate }
+    }
+
+    throw 'apksigner was not found. Install Android SDK build-tools, or set ANDROID_HOME.'
+}
+
+$apkSigner = Resolve-ApkSigner
+
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Push-Location $projectRoot
 try {
@@ -39,7 +66,7 @@ try {
 
     & jarsigner -verify -verbose -certs $pilotAab | Out-Host
     if ($LASTEXITCODE -ne 0) { throw 'AAB signature verification failed.' }
-    & apksigner verify --verbose --print-certs $pilotApk | Out-Host
+    & $apkSigner verify --verbose --print-certs $pilotApk | Out-Host
     if ($LASTEXITCODE -ne 0) { throw 'APK signature verification failed.' }
 
     Get-Item -LiteralPath $pilotApk, $pilotAab | ForEach-Object {

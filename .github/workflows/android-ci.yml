@@ -64,5 +64,12 @@ jobs:
       - name: Build debug APK
         run: gradle :app:assembleDebug --stacktrace
 
+      # CI only ever built debug, so a configuration-cache break in the release task graph went
+      # unnoticed and left `assembleRelease`/`bundleRelease` unbuildable. --dry-run configures the
+      # release tasks and stores the configuration cache without executing them, so this catches
+      # the same class of failure without needing any signing secrets in CI.
+      - name: Validate release task configuration
+        run: gradle :app:assembleRelease :app:bundleRelease --dry-run --stacktrace
+
       - name: Compile instrumentation tests
         run: gradle :app:assembleDebugAndroidTest --stacktrace
