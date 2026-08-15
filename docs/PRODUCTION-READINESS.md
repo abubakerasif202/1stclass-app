@@ -13,23 +13,50 @@ Windows builds, Android unit tests/lint, backend HTTP/security tests, dispatcher
 ## Build and Android release
 
 - [x] Android `clean test lint assembleDebug` passes on Eclipse Temurin JDK 21.
-- [ ] Android `assembleRelease bundleRelease` passes with the official signing key.
+- [~] Android `assembleRelease bundleRelease` passes with the official signing key. **Both now pass with the pilot key** (see the release-build fix below); no official key exists, so this stays open.
+
+> **Release builds were broken and unnoticed until 2026-08-15.** `assembleRelease`, `packageRelease`,
+> and `bundleRelease` all failed under Gradle's configuration cache (enabled in `gradle.properties`)
+> because the signing-validation task action referenced build-script objects, which the
+> configuration cache cannot serialise. CI only ever built `assembleDebug`, so nothing caught it.
+> The validation now resolves to plain values at configuration time, and CI gained a
+> `--dry-run` release-configuration step that reproduces the failure without needing signing
+> secrets. Verified after the fix: `assembleRelease` and `bundleRelease` succeed and are signed by
+> the pilot key; a release build with signing variables unset still fails with
+> `Release signing is not configured`.
 - [x] Stable Android application ID is `au.com.firstclassexpress.driver`.
 - [x] Kotlin/Java namespace migration from `com.example` is completed; active `app/` source has zero matches and the rebuilt APK resolves `au.com.firstclassexpress.driver/.MainActivity`.
 - [x] Release cleartext traffic is disabled.
 - [x] Release signing reads only `KEYSTORE_PATH`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, and `KEY_PASSWORD`; keystores and output artifacts are ignored by Git.
-- [ ] Pilot keystore is generated, backed up in two access-controlled locations, and recovery ownership is recorded.
+- [~] Pilot keystore is generated, backed up in two access-controlled locations, and recovery ownership is recorded. **Generated** 2026-08-15 (see below); **backup and recovery ownership remain outstanding**.
 - [ ] APK and AAB are built with `scripts/build-pilot.ps1`; APK/AAB signature and SHA-256 output is archived with the release record.
 - [ ] Full fresh-install, upgrade, process-kill, reboot, camera, and GPS matrix passes on HUAWEI VOG-L29 (Android 10 / SDK 29). Debug install, launch, login, and pickup workflow entry passed.
 
-Generate a pilot key once from a secure Windows workstation (replace the alias if required):
+A **pilot/staging** signing identity now exists. A search of this workstation confirmed no official
+production signing key had ever been created, so the pilot key below was generated to unblock
+staging distribution. It is explicitly **not** the production key and must never sign a Play Store
+production release.
+
+```
+Location : C:\Secure\1st-class-express\1stclass-express-PILOT-STAGING.jks
+Alias    : pilot-staging
+Algorithm: 4096-bit RSA, SHA384withRSA, valid 3650 days from 2026-08-15
+SHA-256  : EB:32:AC:D6:F4:C9:11:DF:22:08:76:9B:E1:F5:73:49:CF:F6:F6:AE:6F:4B:62:0E:5D:89:66:F7:CE:1E:80:A4
+SHA-1    : 4F:A2:C2:F1:EB:18:23:05:26:AF:A5:CD:74:54:B3:E6:03:CC:44:D9
+```
+
+Passwords are stored owner-only alongside the keystore, outside Git, and are not reproduced in any
+document, ticket, or CI log. **The keystore is currently backed up in one location only** — the
+second access-controlled backup and a named recovery owner are still required before pilot
+distribution.
+
+Build the pilot artifacts once `TMS_BASE_URL` points at the real staging API:
 
 ```powershell
-keytool -genkeypair -v -keystore C:\Secure\1ce-driver-pilot.jks -alias 1ce-driver-pilot -keyalg RSA -keysize 4096 -validity 3650
-$env:KEYSTORE_PATH = 'C:\Secure\1ce-driver-pilot.jks'
-$env:KEY_ALIAS = '1ce-driver-pilot'
+$env:KEYSTORE_PATH = 'C:\Secure\1st-class-express\1stclass-express-PILOT-STAGING.jks'
+$env:KEY_ALIAS = 'pilot-staging'
 $env:TMS_BASE_URL = 'https://<real-staging-api-host>'
-# Populate KEYSTORE_PASSWORD and KEY_PASSWORD from the approved secret manager
+# Populate KEYSTORE_PASSWORD and KEY_PASSWORD from the credentials file / secret manager
 # into this process without printing or persisting them.
 .\scripts\build-pilot.ps1
 ```
@@ -45,6 +72,27 @@ Never place those values in `local.properties`, tracked `.env` files, CI output,
 - [ ] Deployment platform, environment owner, rollback revision, and access policy are recorded.
 
 The strings `https://staging-api.1stclassexpress.com.au` and related Docker defaults are configuration placeholders until DNS and HTTP verification succeed.
+
+### Why staging is not yet provisioned
+
+Deployment access on the build workstation was inventoried on 2026-08-15. The blocker is account
+authorisation, not repository readiness:
+
+- **Vercel** — authenticated. Suitable for the dispatcher. **Not** suitable for the API: the
+  backend holds long-lived SSE streams (`backend/src/sse.ts`), which serverless functions sever.
+- **GitHub** — authenticated.
+- **Google Cloud** — authenticated, but **all five billing accounts are closed**, so Cloud Run,
+  Cloud SQL, and Cloud Storage cannot be provisioned.
+- **Render** — CLI installed, **not authenticated**.
+- **Supabase** — CLI installed, **not authenticated**.
+- **Fly.io, Railway, AWS, Cloudflare, Docker** — not installed.
+
+No PostgreSQL, object-storage, or Firebase credentials exist anywhere on the workstation or in the
+repository. Every downstream staging and physical-device gate depends on the API URL, so those
+gates remain untested rather than failed.
+
+See [STAGING-INFRASTRUCTURE-SETUP.md](STAGING-INFRASTRUCTURE-SETUP.md) for the exact one-time
+account actions that unblock this.
 
 ## Database, media, push, and health
 
@@ -66,6 +114,8 @@ The strings `https://staging-api.1stclassexpress.com.au` and related Docker defa
 - [x] Production requires explicit non-wildcard CORS origins.
 - [x] Dispatcher authentication uses secure HttpOnly/SameSite cookies and memory-only CSRF state, not persistent Web Storage.
 - [x] Current-tree and Git-history secret scans found no confirmed live credential; placeholders, test fixtures, field names, and false positives were classified.
+- [x] Dependency advisories on the backend runtime are clear of high/critical. Eight high-severity `multer` denial-of-service advisories affecting the driver evidence upload path were found via Dependabot on 2026-08-15 and fixed by upgrading to `multer@2.2.0`; `npm audit --omit=dev` now reports high: 0, critical: 0.
+- [ ] Eight **moderate** advisories remain, all transitive under `firebase-admin` (`google-auth-library` → `teeny-request` → `retry-request`). They cannot be cleared without a breaking `firebase-admin` upgrade and should be re-checked before production cutover.
 - [ ] Android exported components, deep-link allowlist, immutable `PendingIntent`s, encrypted token storage, backups, release logs, and network security are reviewed.
 
 ## Backups and retention

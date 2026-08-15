@@ -2,6 +2,20 @@
 
 Use only synthetic staging customers, recipients, phone numbers, addresses, photos, and signatures. Record timestamps in UTC and local time. Never test against production unless a separately approved production test plan exists.
 
+## Current status (2026-08-15)
+
+**This runbook cannot be started yet.** Every section below requires a reachable staging API, and
+none is provisioned. See [STAGING-INFRASTRUCTURE-SETUP.md](STAGING-INFRASTRUCTURE-SETUP.md).
+
+Ready:
+
+- Pilot signing identity exists (`pilot-staging`, SHA-256 `EB:32:AC:…:80:A4`).
+- `scripts/build-pilot.ps1` produces and verifies the signed APK/AAB in one command.
+- Pilot device is connected and identified: **HUAWEI VOG-L29**, serial `DUM0219504000380`.
+
+Outstanding before step 1: `STAGING_API_URL`, `STAGING_DISPATCHER_URL`, staging PostgreSQL,
+private object storage, and a Firebase project with Admin credentials.
+
 ## Preconditions
 
 1. Confirm `docs/PRODUCTION-READINESS.md` has no open release blocker.
