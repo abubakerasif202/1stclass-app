@@ -114,6 +114,8 @@ account actions that unblock this.
 - [x] Production requires explicit non-wildcard CORS origins.
 - [x] Dispatcher authentication uses secure HttpOnly/SameSite cookies and memory-only CSRF state, not persistent Web Storage.
 - [x] Current-tree and Git-history secret scans found no confirmed live credential; placeholders, test fixtures, field names, and false positives were classified.
+- [x] Dependency advisories on the backend runtime are clear of high/critical. Eight high-severity `multer` denial-of-service advisories affecting the driver evidence upload path were found via Dependabot on 2026-08-15 and fixed by upgrading to `multer@2.2.0`; `npm audit --omit=dev` now reports high: 0, critical: 0.
+- [ ] Eight **moderate** advisories remain, all transitive under `firebase-admin` (`google-auth-library` → `teeny-request` → `retry-request`). They cannot be cleared without a breaking `firebase-admin` upgrade and should be re-checked before production cutover.
 - [ ] Android exported components, deep-link allowlist, immutable `PendingIntent`s, encrypted token storage, backups, release logs, and network security are reviewed.
 
 ## Backups and retention
